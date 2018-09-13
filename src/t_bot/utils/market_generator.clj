@@ -175,8 +175,13 @@
    (map (fn [x] (if (neg? x) (* -1 x) x))
      (distinct (apply concat (generate-prices-reductions beta-distribution))))))
 
-(defn generate-timeseries [pricelist]
-   (->>
-     (map #(hash-map :price %) pricelist)
-     (map #(assoc % :name "TEST-DATA"))
-     (map #(assoc % :time (tf/unparse time-formatter (tc/now))))))
+(def unparse (partial tf/unparse time-formatter))
+
+(defn generate-timeseries
+  ([price-list]
+   (generate-timeseries price-list (tc/now)))
+  ([price-list datetime]
+   (let [ time-list (iterate #(tc/plus % (tc/seconds (rand 4))) datetime)
+          name-list (repeat "TEST-DATA")
+          splitted (apply map vector [time-list price-list name-list])]
+     (map #(zipmap [:time :price :name] %) splitted))))
