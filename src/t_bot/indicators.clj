@@ -4,9 +4,9 @@
   [options tick-window tick-list]
   (let [ start-index tick-window
          { :keys [input output etal]
-           :or { input :last
+           :or { input :price
                  output :last-average
-                 etal [:last :last-time]}} options]
+                 etal [:price :time]}} options]
     (map (fn [ech]
            (let [ tsum (reduce (fn [rr ee]
                                   (let [ltprice (:price ee)]
@@ -52,7 +52,7 @@
   ** This function assumes the latest tick is on the left**"
 
   ([tick-window tick-list]
-   (bollinger-band tick-window tick-list (simple-moving-average nil tick-window tick-list)))
+   (bollinger-band_ tick-window tick-list (simple-moving-average nil tick-window tick-list)))
 
   ([tick-window tick-list sma-list]
 

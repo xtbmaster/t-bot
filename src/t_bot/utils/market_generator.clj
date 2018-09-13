@@ -95,7 +95,7 @@
   (= 0.0 (Double. (format "%.7f" xval))))
 
 (defn- find-xintercept [direction mfn]
-  (loop [start-point 0.0
+  (loop [ start-point 0.0
           distance 1.0
           ydir (ydirection (mfn (direction 0 0.1)))
           dirn direction]
@@ -123,7 +123,7 @@
     (partial mathfn-curried b)))
 
 (defn- generate-polynomial-sequence []
-  (let [one (randomize-vertical-dilation polynomial 0.5 2)
+  (let [ one (randomize-vertical-dilation polynomial 0.5 2)
          two (randomize-horizontal-dilation one 0.5 2)
          polyn-partial (partial two 3)
          xinterc-polyn-left (find-xintercept - polynomial-xintercept)
