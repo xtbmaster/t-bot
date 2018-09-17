@@ -101,7 +101,8 @@
                     :open-price open-price
                     :close-price close-price
                     :upper-band upper-band
-                    :lower-band lower-band}]
+                    :lower-band lower-band
+                    :time time}]
         (println (str
                    " PRICE: " price
                    " TIME: " time
@@ -139,9 +140,17 @@
         :y []
         :type "scatter"
         :mode "markers"
-        :name "open"}
+        :name "open"
+        :marker {:line { :width 3}
+                  :opacity 0.5
+                  :size 12
+                  :symbol "circle-open"}}
       { :x []
         :y []
         :type "scatter"
         :mode "markers"
-        :name "close"}]))
+        :name "close"
+        :marker { :line { :width 3}
+                  :opacity 0.5
+                  :size 12
+                  :symbol "circle-open"}}]))
