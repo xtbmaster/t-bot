@@ -16,9 +16,11 @@
 
     [clojure.core.async :as async :refer [go go-loop chan close! <! >!]]))
 
-
 (def ^:private rate-limit 20)
 (def ^:private throttle (throttle-fn identity rate-limit :second))
+
+(def ^:private endpoints (edn/read-string (clojure.core/slurp "resources/endpoints.edn")))
+(def ^:private config (edn/read-string (clojure.core/slurp "resources/config.edn")))
 
 (defn create-url [query base-endpoint]
   (str base-endpoint query))
@@ -70,9 +72,16 @@
 (defn get-price
   ([symb] (get-price symb 1))
   ([symb limit]
-   (let [url (create-url endpoint-trade base-endpoint)]
+   (let [url (create-url (:trade endpoints) (:base endpoints))]
      (parse-response (get-response url {:symbol symb :limit limit})))))
 
+(defn open? [price {:keys [boll] :as indicators}]
+  (let [{:keys [lower-band]} boll]
+    (<= price lower-band)))
+
+(defn close? [price {:keys [boll] :as indicators}]
+  (let [{:keys [upper-band]} boll]
+    (>= price upper-band)))
 
 (defmulti start! identity)
 
@@ -83,15 +92,26 @@
          boll (indicators/bollinger-band 20 time-series)]
                                         ; _ (visualization/build-graph! 3030 "TEST-DATA")]
     (doseq [{:keys [price time average upper-band lower-band] :as x}  boll]
-      (println (str
-                 " PRICE: " price
-                 " TIME: " time
-                 " UPPER BAND: " upper-band
-                 " LOWER BAND: " lower-band))
-      (Thread/sleep 500)
-      (visualization/update-graph! x name))))
+      (let [ indicators {:boll x}
+             open-price (when (open? price indicators)
+                          price)
+             close-price (when (close? price indicators)
+                           price)
+             data { :price price
+                    :open-price open-price
+                    :close-price close-price
+                    :upper-band upper-band
+                    :lower-band lower-band}]
+        (println (str
+                   " PRICE: " price
+                   " TIME: " time
+                   " UPPER BAND: " upper-band
+                   " LOWER BAND: " lower-band
+                   " OPEN PRICE: " open-price
+                   " CLOSE PRICE: " close-price))
+        (Thread/sleep 1000)
+        (visualization/update-graph! data name)))))
 
-()
 
 (defmethod start! :prod [_] (println "hello prod"))
 
@@ -114,4 +134,14 @@
         :y []
         :type "line"
         :name "lower-band"
-        :line { :dash "dashdot"}}]))
+        :line { :dash "dashdot"}}
+      { :x []
+        :y []
+        :type "scatter"
+        :mode "markers"
+        :name "open"}
+      { :x []
+        :y []
+        :type "scatter"
+        :mode "markers"
+        :name "close"}]))

@@ -1,4 +1,6 @@
 /target
+/resources/endpoints.edn
+/resources/config.edn
 /classes
 /checkouts
 pom.xml
