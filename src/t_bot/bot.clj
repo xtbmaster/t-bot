@@ -5,6 +5,7 @@
     [t-bot.utils.market-generator :as market-generator]
     [t-bot.utils.visualization :as visualization]
     [t-bot.indicators :as indicators]
+    [t-bot.utils.utils :as utils]
 
     [clj-http.client :as client]
     [throttler.core :refer [throttle-fn]]
@@ -14,6 +15,7 @@
     [clj-time.format :as time-f]
 
     [clojure.core.async :as async :refer [go go-loop chan close! <! >!]]))
+
 
 (def ^:private rate-limit 20)
 (def ^:private throttle (throttle-fn identity rate-limit :second))
@@ -75,22 +77,41 @@
 (defmulti start! identity)
 
 (defmethod start! :dev [_]
-  (let [ price-list (market-generator/generate-prices)
-         market-data (market-generator/generate-timeseries price-list)]
-        ; _ (visualization/build-graph! 3030 "TEST-DATA")]
-    (doseq [x market-data]
-      (println x)
-      (Thread/sleep 800)
-      (visualization/update-graph! x))))
+  (let [ name "TEST-DATA"
+         price-list (market-generator/generate-prices)
+         time-series (market-generator/generate-timeseries price-list)
+         boll (indicators/bollinger-band 20 time-series)]
+                                        ; _ (visualization/build-graph! 3030 "TEST-DATA")]
+    (doseq [{:keys [price time average upper-band lower-band] :as x}  boll]
+      (println (str
+                 " PRICE: " price
+                 " TIME: " time
+                 " UPPER BAND: " upper-band
+                 " LOWER BAND: " lower-band))
+      (Thread/sleep 500)
+      (visualization/update-graph! x name))))
+
+()
 
 (defmethod start! :prod [_] (println "hello prod"))
 
 (comment
 
-  (j/start-jutsu! 3030 false)
+  (j/start-jutsu! 3031 false)
 
   (j/graph!
     "TEST-DATA"
-    [{ :x []
-       :y []
-       :type "scatter"}]))
+    [ { :x []
+        :y []
+        :type "line"
+        :name "price"}
+      { :x []
+        :y []
+        :type "line"
+        :name "upper-band"
+        :line { :dash "dashdot"}}
+      { :x []
+        :y []
+        :type "line"
+        :name "lower-band"
+        :line { :dash "dashdot"}}]))

@@ -23,8 +23,8 @@
       numerator)))
 
 (defn- break-local-minima-maxima [k]
-  (as-> (double k) k
-    (if (<= (int (+ 0.95 k)) 0)
+  (as-> k k
+    (if (<= (double (+ 0.95 k)) 0)
       (+ 0.15 k) k)
     (if (>= k 1)
       (- k 0.15) k)))
@@ -33,25 +33,22 @@
   ([low high]
    (generate-prices_ (random-in-range low high)))
   ([last-price]
-   (iterate (fn [{:keys [last]}]
-              (let [ low (- last 5)
-                     high (+ last 5)
-                     k (stochastic-k last low high)
+   (iterate (fn [price]
+              (let [ low (- price 5)
+                     high (+ price 5)
+                     k (stochastic-k price low high)
                      plus-OR-minus (rand-nth [- +])
                      kPM (if (= plus-OR-minus +)
                            (+ 1 (break-local-minima-maxima k))
                            (- 1 (break-local-minima-maxima k)))
-                     newprice (* kPM last)
+                     newprice (* kPM price)
                      newlow (if (< newprice low) newprice low)
                      newhigh (if (> newprice high) newprice high)]
-                {:last newprice}))
-     {:last last-price})))
-
-(defn- extract-prices-only [pricelist]
-  (map :last pricelist))
+                newprice))
+     last-price)))
 
 (defn- generate-prices-essential [beginning-low beginning-high]
-  (extract-prices-only (generate-prices_ beginning-low beginning-high)))
+  (generate-prices_ beginning-low beginning-high))
 
 (defn- polynomial [a b c x]
   (->
@@ -175,13 +172,15 @@
    (map (fn [x] (if (neg? x) (* -1 x) x))
      (distinct (apply concat (generate-prices-reductions beta-distribution))))))
 
-(def unparse (partial tf/unparse time-formatter))
+(defn- simplify-time [m]
+  (let [ unparse (partial tf/unparse time-formatter)]
+    (update m :time unparse)))
 
 (defn generate-timeseries
   ([price-list]
    (generate-timeseries price-list (tc/now)))
   ([price-list datetime]
-   (let [ time-list (iterate #(tc/plus % (tc/seconds (rand 4))) datetime)
-          name-list (repeat "TEST-DATA")
-          splitted (apply map vector [time-list price-list name-list])]
-     (map #(zipmap [:time :price :name] %) splitted))))
+   (let [ unparse (partial tf/unparse time-formatter)
+          time-list (map unparse (iterate #(tc/plus % (tc/seconds (rand 4))) datetime))
+          splitted (apply map vector [time-list price-list])]
+     (map #(zipmap [:time :price] %) splitted))))

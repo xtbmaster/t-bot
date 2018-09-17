@@ -5,7 +5,7 @@
   (let [ start-index tick-window
          { :keys [input output etal]
            :or { input :price
-                 output :last-average
+                 output :average
                  etal [:price :time]}} options]
     (map (fn [ech]
            (let [ tsum (reduce (fn [rr ee]
@@ -41,7 +41,7 @@
       (Math/sqrt))))
 
 
-(defn bollinger-band_
+(defn bollinger-band
   "From a tick-list, generates an accompanying list with upper-band and lower-band
   Upper Band: K times an N-period standard deviation above the moving average (MA + Kσ)
   Lower Band: K times an N-period standard deviation below the moving average (MA − Kσ)
@@ -52,39 +52,29 @@
   ** This function assumes the latest tick is on the left**"
 
   ([tick-window tick-list]
-   (bollinger-band_ tick-window tick-list (simple-moving-average nil tick-window tick-list)))
-
+    (bollinger-band tick-window tick-list (simple-moving-average nil tick-window tick-list)))
   ([tick-window tick-list sma-list]
-
-   ;; At each step, the Standard Deviation will be: the square root of the variance (average of the squared differences from the Mean)
-   (reduce (fn [rslt ech]
-
-             (let [;; get the Moving Average
-                   ma (:last-trade-price-average ech)
-
-                   ;; work out the mean
-                   mean (/ (reduce (fn [rslt ech]
-                                     (+ (:last-trade-price ech)
-                                        rslt))
-                                   0
-                                   (:population ech))
-                           (count (:population ech)))
-
-                   ;; Then for each number: subtract the mean and square the result (the squared difference)
-                   sq-diff-list (map (fn [ech]
-                                       (let [diff (- mean (:last-trade-price ech))]
-                                         (* diff diff)))
-                                     (:population ech))
-
-                   variance (/ (reduce + sq-diff-list) (count (:population ech)))
-                   standard-deviation (. Math sqrt variance)]
-
-               (lazy-cat rslt
-                         [{:last-trade-price (:last-trade-price ech)
-                           :last-trade-time (:last-trade-time ech)
-                           :upper-band (+ ma (* 2 standard-deviation))
-                           :lower-band (- ma (* 2 standard-deviation))}])))
-           '()
-     sma-list)))
-
-
+    ;; At each step, the Standard Deviation will be: the square root of the variance (average of the squared differences from the Mean)
+    (map (fn [ech]
+           (let [;; get the Moving Average
+                  ma (:average ech)
+                  ;; work out the mean
+                  mean (/ (reduce (fn [rslt ech]
+                                    (+ (:price ech)
+                                      rslt))
+                            0
+                            (:population ech))
+                         (count (:population ech)))
+                  ;; Then for each number: subtract the mean and square the result (the squared difference)
+                  sq-diff-list (map (fn [ech]
+                                      (let [diff (- mean (:price ech))]
+                                        (* diff diff)))
+                                 (:population ech))
+                  variance (/ (reduce + sq-diff-list) (count (:population ech)))
+                  standard-deviation (. Math sqrt variance)]
+             { :price (:price ech)
+               :time (:time ech)
+               :average ma
+               :upper-band (+ ma (* 2 standard-deviation))
+               :lower-band (- ma (* 2 standard-deviation))}))
+      sma-list)))
