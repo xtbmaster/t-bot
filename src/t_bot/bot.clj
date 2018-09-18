@@ -14,6 +14,8 @@
     [clj-time.coerce :as time-c]
     [clj-time.format :as time-f]
 
+    [clojure.tools.logging :as log]
+
     [clojure.core.async :as async :refer [go go-loop chan close! <! >!]]))
 
 (def ^:private rate-limit 20)
@@ -75,13 +77,15 @@
    (let [url (create-url (:trade endpoints) (:base endpoints))]
      (parse-response (get-response url {:symbol symb :limit limit})))))
 
-(defn open? [price {:keys [boll] :as indicators}]
-  (let [{:keys [lower-band]} boll]
-    (<= price lower-band)))
 
-(defn close? [price {:keys [boll] :as indicators}]
-  (let [{:keys [upper-band]} boll]
-    (>= price upper-band)))
+(defn- open?
+  [price {:keys [prev-price] {:keys [lower-band]} :boll}]
+  (and (<= price lower-band) (> price prev-price)))
+
+;; TODO: UNIFY
+(defn- close?
+  [price {:keys [prev-price] {:keys [upper-band]} :boll}]
+  (and (>= price upper-band) (< price prev-price)))
 
 (defmulti start! identity)
 
@@ -103,16 +107,9 @@
                     :upper-band upper-band
                     :lower-band lower-band
                     :time time}]
-        (println (str
-                   " PRICE: " price
-                   " TIME: " time
-                   " UPPER BAND: " upper-band
-                   " LOWER BAND: " lower-band
-                   " OPEN PRICE: " open-price
-                   " CLOSE PRICE: " close-price))
+        (log/info data)
         (Thread/sleep 1000)
         (visualization/update-graph! data name)))))
-
 
 (defmethod start! :prod [_] (println "hello prod"))
 
@@ -154,3 +151,9 @@
                   :opacity 0.5
                   :size 12
                   :symbol "circle-open"}}]))
+
+;; TODO: telegram integration
+;; TODO: logging to file
+;; TODO: console control
+;; TODO: connection lose handling
+;; TODO: MACD or RSI

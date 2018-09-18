@@ -73,6 +73,7 @@
                   variance (/ (reduce + sq-diff-list) (count (:population ech)))
                   standard-deviation (. Math sqrt variance)]
              { :price (:price ech)
+               :prev-price ((comp :price second reverse) (:population ech))
                :time (:time ech)
                :average ma
                :upper-band (+ ma (* 2 standard-deviation))
