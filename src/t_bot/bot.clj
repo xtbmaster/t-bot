@@ -18,10 +18,12 @@
 
     [clojure.core.async :as async :refer [go go-loop chan close! <! >!]]))
 
+(def ^:const BINANCE :binance)
+
+
 (def ^:private rate-limit 20)
 (def ^:private throttle (throttle-fn identity rate-limit :second))
 
-(def ^:private endpoints (edn/read-string (clojure.core/slurp "resources/endpoints.edn")))
 (def ^:private config (edn/read-string (clojure.core/slurp "resources/config.edn")))
 
 (defn create-url [query base-endpoint]
@@ -71,10 +73,11 @@
             (edn/read-string r))]
     (map parse-trade r)))
 
-(defn get-price
-  ([symb] (get-price symb 1))
-  ([symb limit]
-   (let [url (create-url (:trade endpoints) (:base endpoints))]
+(defn get-ticks!
+  ([platform symb] (get-ticks! platform symb 1))
+  ([platform symb limit]
+   (let [ endpoints (platform (edn/read-string (clojure.core/slurp "resources/endpoints.edn")))
+          url (create-url (:ticks endpoints) (:base endpoints))]
      (parse-response (get-response url {:symbol symb :limit limit})))))
 
 
@@ -91,11 +94,15 @@
 
 (defmethod start! :dev [_]
   (let [ name "TEST-DATA"
-         price-list (market-generator/generate-prices)
-         time-series (market-generator/generate-timeseries price-list)
-         boll (indicators/bollinger-band 20 time-series)]
+         ;price-list (market-generator/generate-prices)
+         ; time-series (market-generator/generate-timeseries price-list)
+         tick-list (get-ticks! BINANCE "ADABTC" 1000)
+         sma-list (indicators/simple-moving-average nil 20 tick-list)
+         ema-list (indicators/exponential-moving-average nil 20 tick-list sma-list)
+         boll (indicators/bollinger-band 20 tick-list sma-list)
+         masd (indicators/moving-averages-signals tick-list sma-list ema-list)]
                                         ; _ (visualization/build-graph! 3030 "TEST-DATA")]
-    (doseq [{:keys [price time average upper-band lower-band] :as x}  boll]
+    (doseq [{:keys [price time price-average upper-band lower-band] :as x}  boll]
       (let [ indicators {:boll x}
              open-price (when (open? price indicators)
                           price)
@@ -156,4 +163,5 @@
 ;; TODO: logging to file
 ;; TODO: console control
 ;; TODO: connection lose handling
+;; TODO: request timeout
 ;; TODO: MACD or RSI
