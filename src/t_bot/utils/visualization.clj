@@ -19,3 +19,38 @@
         [{ :x []
            :y []
            :type "scatter"}]))))
+
+(j/graph!
+  "TEST-DATA"
+  [ { :x []
+      :y []
+      :type "line"
+      :name "price"}
+    { :x []
+      :y []
+      :type "line"
+      :name "upper-band"
+      :line { :dash "dashdot"}}
+    { :x []
+      :y []
+      :type "line"
+      :name "lower-band"
+      :line { :dash "dashdot"}}
+    { :x []
+      :y []
+      :type "scatter"
+      :mode "markers"
+      :name "open"
+      :marker {:line { :width 3}
+                :opacity 0.5
+                :size 12
+                :symbol "circle-open"}}
+    { :x []
+      :y []
+      :type "scatter"
+      :mode "markers"
+      :name "close"
+      :marker { :line { :width 3}
+                :opacity 0.5
+                :size 12
+                :symbol "circle-open"}}])
