@@ -20,7 +20,6 @@
 
 (def ^:const BINANCE :binance)
 
-
 (def ^:private rate-limit 20)
 (def ^:private throttle (throttle-fn identity rate-limit :second))
 
@@ -67,18 +66,14 @@
       (assoc t :time (parse-date (:time keywordized))))))
 
 (defn- parse-response [response]
-  (let [r (as-> response r
-            (:body r)
-            (str/replace r #":" "")
-            (edn/read-string r))]
-    (map parse-trade r)))
+  (map parse-trade (:body response)))
 
 (defn get-ticks!
   ([platform symb] (get-ticks! platform symb 1))
   ([platform symb limit]
-   (let [ endpoints (platform (edn/read-string (clojure.core/slurp "resources/endpoints.edn")))
-          url (create-url (:ticks endpoints) (:base endpoints))]
-     (parse-response (get-response url {:symbol symb :limit limit})))))
+    (let [ endpoints (platform (edn/read-string (clojure.core/slurp "resources/endpoints.edn")))
+           url (create-url (:ticks endpoints) (:base endpoints))]
+      (parse-response (get-response url {:symbol symb :limit limit})))))
 
 
 (defn- open?
@@ -94,13 +89,13 @@
 
 (defmethod start! :dev [_]
   (let [ name "TEST-DATA"
-         ;price-list (market-generator/generate-prices)
-         ; time-series (market-generator/generate-timeseries price-list)
-         tick-list (get-ticks! BINANCE "ADABTC" 1000)
+                                        ;price-list (market-generator/generate-prices)
+                                        ; time-series (market-generator/generate-timeseries price-list)
+         tick-list (get-ticks! :binance "ADABTC" 1000)
          sma-list (indicators/simple-moving-average nil 20 tick-list)
          ema-list (indicators/exponential-moving-average nil 20 tick-list sma-list)
          boll (indicators/bollinger-band 20 tick-list sma-list)
-         masd (indicators/moving-averages-signals tick-list sma-list ema-list)]
+         macd (indicators/moving-averages-signals tick-list sma-list ema-list)]
                                         ; _ (visualization/build-graph! 3030 "TEST-DATA")]
     (doseq [{:keys [price time price-average upper-band lower-band] :as x}  boll]
       (let [ indicators {:boll x}

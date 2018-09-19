@@ -1,14 +1,7 @@
 (ns t-bot.third-parties.telegram
   (:require
-    [clojure.edn :as edn]
     [morse.handlers :as h]
     [morse.api :as api]))
-
-(def ^:private token
-  (->
-    (clojure.core/slurp "resources/api_keys.edn")
-    (edn/read-string)
-    :telegram))
 
 (h/defhandler bot-api
   (h/command "start" {{id :id :as chat} :chat}
@@ -21,4 +14,5 @@
 
   (h/message message (println "Intercepted message:" message)))
 
-(api/send-text token chat-id "hello")
+(defn send-msg! [{:keys [telegram-api-key telegram-chat-id] :as config} msg]
+  (api/send-text telegram-api-key telegram-chat-id msg))

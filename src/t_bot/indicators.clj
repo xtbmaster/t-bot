@@ -41,8 +41,8 @@
                                             (output (last rslt))
                                             (input ech))
                                  ;; ** EMA now = price(today) * k + EMA(yesterday) * (1 - k)
-                                 ema-now (+ (* k ltprice)
-                                           (* ema-last (- 1 k)))]
+                                 ema-now (+ (with-precision 10 (* k ltprice))
+                                           (with-precision 10 (* ema-last (- 1 k))))]
                             (lazy-cat rslt
                               [(merge
                                  (zipmap etal
@@ -127,7 +127,7 @@
       ;; find time points where ema-list (or second list) crosses over the sma-list (or 1st list)
       (map (fn [[fst snd]]
              (let [
-                    ;; in the first element, has the ema crossed abouve the sma from the second element
+                    ;; in the first element, has the ema crossed above the sma from the second element
                     signal-up (and (< (:price-exponential snd) (:price-average snd))
                                 (> (:price-exponential fst) (:price-average fst)))
                     ;; in the first element, has the ema crossed below the sma from the second element

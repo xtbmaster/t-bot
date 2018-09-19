@@ -10,4 +10,6 @@
                   [org.clojure/core.async "0.4.474"]
 
                   [org.clojure/math.numeric-tower "0.0.4"]
-                  [org.apache.commons/commons-math3 "3.6.1"]])
+                  [org.apache.commons/commons-math3 "3.6.1"]
+
+                  [morse "0.4.0"]]
