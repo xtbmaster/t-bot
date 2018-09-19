@@ -1,0 +1,2 @@
+{ :binance { :base "https://api.binance.com/api"
+             :ticks "/v1/trades"}}
