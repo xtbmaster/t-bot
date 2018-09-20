@@ -3,7 +3,7 @@
     [jutsu.core :as j]
 
     [t-bot.utils.market-generator :as market-generator]
-    [t-bot.utils.visualization :as visualization]
+    [t-bot.utils.visualization :as visual]
     [t-bot.indicators :as indicators]
     [t-bot.utils.utils :as utils]
 
@@ -19,6 +19,7 @@
     [clojure.core.async :as async :refer [go go-loop chan close! <! >!]]))
 
 (def ^:const BINANCE :binance)
+
 
 (def ^:private rate-limit 20)
 (def ^:private throttle (throttle-fn identity rate-limit :second))
@@ -51,8 +52,8 @@
                    :throw-exceptions   ex?}))))
 
 (defn- parse-date [in-long]
-  (let [ full-f (time-f/formatters :date-hour-minute-second)
-         short-f (time-f/formatters :hour-minute-second)
+  (let [ full-f (time-f/formatters :date-hour-minute-second-ms)
+         short-f (time-f/formatters :hour-minute-second-ms)
          date-time (time-c/from-long in-long)
          full-date (time-f/unparse full-f date-time)
          short-date (time-f/unparse short-f date-time)]
@@ -66,97 +67,69 @@
       (assoc t :time (parse-date (:time keywordized))))))
 
 (defn- parse-response [response]
-  (map parse-trade (:body response)))
+    (map parse-trade (:body response)))
 
+;; TODO: pass config
 (defn get-ticks!
   ([platform symb] (get-ticks! platform symb 1))
   ([platform symb limit]
-    (let [ endpoints (platform (edn/read-string (clojure.core/slurp "resources/endpoints.edn")))
-           url (create-url (:ticks endpoints) (:base endpoints))]
-      (parse-response (get-response url {:symbol symb :limit limit})))))
+   (let [ endpoints (platform (edn/read-string (clojure.core/slurp "resources/endpoints.edn")))
+          url (create-url (:ticks endpoints) (:base endpoints))]
+     (parse-response (get-response url {:symbol symb :limit limit})))))
+
+;; { :price price
+;;   :prev-price prev-price
+;;   :upper-band (:upper-band boll)
+;;   :lower-band (:lower-band boll)
+;;   :price-average sma
+;;   :price-exponential ema
+;;   :signal macd
+;;   :time ((comp :time last) tick-list)}
 
 
-(defn- open?
-  [price {:keys [prev-price] {:keys [lower-band]} :boll}]
-  (and (<= price lower-band) (> price prev-price)))
 
 ;; TODO: UNIFY
+(defn- open?
+  [{:keys [current-price prev-price upper-band lower-band signal]}]
+  (when-not (identical? :down signal)
+    (and (<= current-price lower-band) (> current-price prev-price))))
+
 (defn- close?
-  [price {:keys [prev-price] {:keys [upper-band]} :boll}]
-  (and (>= price upper-band) (< price prev-price)))
+  [{:keys [current-price prev-price upper-band lower-band signal]}]
+  (when-not (identical? :up signal)
+    (and (>= current-price upper-band) (< current-price prev-price))))
 
 (defmulti start! identity)
 
 (defmethod start! :dev [_]
   (let [ name "TEST-DATA"
-                                        ;price-list (market-generator/generate-prices)
-                                        ; time-series (market-generator/generate-timeseries price-list)
-         tick-list (get-ticks! :binance "ADABTC" 1000)
-         sma-list (indicators/simple-moving-average nil 20 tick-list)
-         ema-list (indicators/exponential-moving-average nil 20 tick-list sma-list)
-         boll (indicators/bollinger-band 20 tick-list sma-list)
-         macd (indicators/moving-averages-signals tick-list sma-list ema-list)]
+         tick-list (get-ticks! BINANCE "ADABTC" 1000)
+         partitioned-ticks (partition 20 1 tick-list)] ;; TODO: review price order
                                         ; _ (visualization/build-graph! 3030 "TEST-DATA")]
-    (doseq [{:keys [price time price-average upper-band lower-band] :as x}  boll]
-      (let [ indicators {:boll x}
-             open-price (when (open? price indicators)
-                          price)
-             close-price (when (close? price indicators)
-                           price)
-             data { :price price
-                    :open-price open-price
-                    :close-price close-price
-                    :upper-band upper-band
-                    :lower-band lower-band
-                    :time time}]
-        (log/info data)
+    (doseq [ x partitioned-ticks]
+      (let [ indicators (indicators/get-indicators x)
+             open-price (:open-price (when (open? indicators) (:current-price indicators)))
+             close-price (:close-price (when (close? indicators) (:current-price indicators)))
+             data (merge indicators open-price close-price)]
+        (log/info indicators)
         (Thread/sleep 1000)
-        (visualization/update-graph! data name)))))
+        (visual/update-graph! data name)))))
 
 (defmethod start! :prod [_] (println "hello prod"))
 
 (comment
+  (visual/start-jutsu! 3031)
+  (visual/graph! "TEST-DATA")
+  (start! :dev))
 
-  (j/start-jutsu! 3031 false)
+;; FIXME: trades of the same time
 
-  (j/graph!
-    "TEST-DATA"
-    [ { :x []
-        :y []
-        :type "line"
-        :name "price"}
-      { :x []
-        :y []
-        :type "line"
-        :name "upper-band"
-        :line { :dash "dashdot"}}
-      { :x []
-        :y []
-        :type "line"
-        :name "lower-band"
-        :line { :dash "dashdot"}}
-      { :x []
-        :y []
-        :type "scatter"
-        :mode "markers"
-        :name "open"
-        :marker {:line { :width 3}
-                  :opacity 0.5
-                  :size 12
-                  :symbol "circle-open"}}
-      { :x []
-        :y []
-        :type "scatter"
-        :mode "markers"
-        :name "close"
-        :marker { :line { :width 3}
-                  :opacity 0.5
-                  :size 12
-                  :symbol "circle-open"}}]))
+(map (get-ticks! BINANCE "ADABTC" 20))
 
-;; TODO: telegram integration
+
 ;; TODO: logging to file
 ;; TODO: console control
 ;; TODO: connection lose handling
 ;; TODO: request timeout
-;; TODO: MACD or RSI
+;; TODO: RSI
+;; TODO: tests :)

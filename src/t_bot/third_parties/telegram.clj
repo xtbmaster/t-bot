@@ -3,7 +3,7 @@
     [morse.handlers :as h]
     [morse.api :as api]))
 
-(h/defhandler bot-api
+#_(h/defhandler bot-api
   (h/command "start" {{id :id :as chat} :chat}
     (println "Bot joined new chat: " chat)
     (api/send-text token id "Welcome!"))

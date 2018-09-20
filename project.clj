@@ -13,3 +13,4 @@
                   [org.apache.commons/commons-math3 "3.6.1"]
 
                   [morse "0.4.0"]]
+  :resource-paths ["resources"])
