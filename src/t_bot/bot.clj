@@ -73,10 +73,11 @@
 (defn get-ticks!
   ([platform symb] (get-ticks! platform symb 1))
   ([platform symb limit]
-   (let [ endpoints (platform (edn/read-string (clojure.core/slurp "resources/endpoints.edn")))
-          url (create-url (:ticks endpoints) (:base endpoints))]
-     (parse-response (get-response url {:symbol symb :limit limit})))))
+    (let [ endpoints (platform (edn/read-string (clojure.core/slurp "resources/endpoints.edn")))
+           url (create-url (:ticks endpoints) (:base endpoints))]
+      (parse-response (get-response url {:symbol symb :limit limit})))))
 
+;; TODO; freefall
 ;; TODO: UNIFY
 (defn- open?
   [{:keys [current-price prev-price upper-band lower-band signal]}]
@@ -90,6 +91,9 @@
 
 (defmulti start! identity)
 
+(defn make-time-unique [time weight]
+  (str (:short time) (rem (:id weight) 100)))
+
 (defmethod start! :dev [_]
   (let [ name "TEST-DATA"
          tick-list (get-ticks! BINANCE "ADABTC" 1000)
@@ -97,9 +101,11 @@
                                         ; _ (visualization/build-graph! 3030 "TEST-DATA")]
     (doseq [ x partitioned-ticks]
       (let [ indicators (indicators/get-indicators x)
-             open-price (:open-price (when (open? indicators) (:current-price indicators)))
-             close-price (:close-price (when (close? indicators) (:current-price indicators)))
-             data (merge indicators open-price close-price)]
+             id {:id ((comp :id last) x)}
+             unique-time {:time (make-time-unique (:time indicators) id)}
+             open-price {:open-price (when (open? indicators) (:current-price indicators))}
+             close-price {:close-price (when (close? indicators) (:current-price indicators))}
+             data (merge indicators open-price close-price id unique-time)]
         (log/info indicators)
         (Thread/sleep 1000)
         (visual/update-graph! data name)))))

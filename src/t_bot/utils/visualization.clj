@@ -3,12 +3,12 @@
     [jutsu.core :as j]))
 
 (defn update-graph! [{:keys [ time price-average price-exponential upper-band lower-band
-                              current-price open-price close-price signal] :as indicators} name]
+                              current-price open-price close-price signal id] :as indicators} name]
   (let [ n-data (count indicators)
          y-axis [ [current-price] [upper-band] [lower-band]
                   [price-average] [price-exponential] [open-price] [close-price]
                   [signal]]
-         x-axis (vec (repeat n-data [(:short time)]))
+         x-axis (vec (repeat n-data [time]))
          traces (vec (range n-data))]
     (j/update-graph!
       name
