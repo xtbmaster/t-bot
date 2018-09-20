@@ -77,17 +77,6 @@
           url (create-url (:ticks endpoints) (:base endpoints))]
      (parse-response (get-response url {:symbol symb :limit limit})))))
 
-;; { :price price
-;;   :prev-price prev-price
-;;   :upper-band (:upper-band boll)
-;;   :lower-band (:lower-band boll)
-;;   :price-average sma
-;;   :price-exponential ema
-;;   :signal macd
-;;   :time ((comp :time last) tick-list)}
-
-
-
 ;; TODO: UNIFY
 (defn- open?
   [{:keys [current-price prev-price upper-band lower-band signal]}]
