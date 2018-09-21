@@ -44,29 +44,28 @@
         :lower-band lower-band})))
 
 (defn moving-averages-signals
-  ([tick-list]
-    (let [ sma (simple-moving-average tick-list)
-           ema (exponential-moving-average tick-list sma)]
-      (moving-averages-signals tick-list sma ema)))
-  ([tick-list sma ema]
-    (let [ yst-list (drop-last tick-list)
-           yst-sma (simple-moving-average yst-list)
-           yst-ema (exponential-moving-average yst-list)
-           signal-up (and (< yst-ema yst-sma) (> ema sma))
-           signal-down (and (> yst-ema yst-sma) (< ema sma))]
+  ([today-list yest-list]
+    (let [ yest-sma (simple-moving-average yest-list)
+           yest-ema (exponential-moving-average yest-list)
+           today-sma (simple-moving-average today-list)
+           today-ema (exponential-moving-average today-list)]
+      (moving-averages-signals yest-sma yest-ema today-sma today-ema)))
+  ([yest-sma yest-ema today-sma today-ema]
+    (let [ signal-up (and (< yest-ema yest-sma) (> today-ema today-sma))
+           signal-down (and (> yest-ema yest-sma) (< today-ema today-sma))]
       (cond
         signal-up :up
         signal-down :down))))
 
-(defn get-indicators [tick-list]
-  (let [ pure-list (map :price tick-list)
-         last-ticks (take-last 2 pure-list)
-         price (last last-ticks)
-         prev-price (first last-ticks)
-         sma (simple-moving-average pure-list)
-         ema (exponential-moving-average pure-list)
-         boll (bollinger-band pure-list sma)
-         macd (moving-averages-signals pure-list sma ema)]
+(defn get-indicators [yest-tick-list today-tick-list]
+  (let [ pure-yest-list (map :price yest-tick-list)
+         pure-today-list (map :price today-tick-list)
+         price (last pure-today-list)
+         prev-price (last pure-yest-list)
+         sma (simple-moving-average pure-today-list)
+         ema (exponential-moving-average pure-today-list)
+         boll (bollinger-band pure-today-list sma)
+         macd (moving-averages-signals pure-today-list pure-yest-list)]
     { :current-price price
       :prev-price prev-price
       :upper-band (:upper-band boll)
@@ -74,7 +73,7 @@
       :price-average sma
       :price-exponential ema
       :signal macd
-      :time ((comp :time last) tick-list)}))
+      :time ((comp :time last) today-tick-list)}))
 
 
 ;; STREAM DATA

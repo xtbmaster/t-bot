@@ -81,13 +81,13 @@
 ;; TODO: UNIFY
 (defn- open?
   [{:keys [current-price prev-price upper-band lower-band signal]}]
-  (when-not (identical? :down signal)
-    (and (<= current-price lower-band) (> current-price prev-price))))
+  #_(when-not (identical? :down signal))
+  (and (<= current-price lower-band) #_(> current-price prev-price)))
 
 (defn- close?
   [{:keys [current-price prev-price upper-band lower-band signal]}]
-  (when-not (identical? :up signal)
-    (and (>= current-price upper-band) (< current-price prev-price))))
+  #_(when-not (identical? :up signal))
+  (and (>= current-price upper-band) #_(< current-price prev-price)))
 
 (defmulti start! identity)
 
@@ -99,16 +99,19 @@
          tick-list (get-ticks! BINANCE "ADABTC" 1000)
          partitioned-ticks (partition 20 1 tick-list)] ;; TODO: review price order
                                         ; _ (visualization/build-graph! 3030 "TEST-DATA")]
-    (doseq [ x partitioned-ticks]
-      (let [ indicators (indicators/get-indicators x)
-             id {:id ((comp :id last) x)}
+    (loop [ list partitioned-ticks
+            yest-list (first partitioned-ticks)
+            today-list (second partitioned-ticks)]
+      (let [ indicators (indicators/get-indicators yest-list today-list)
+             id {:id ((comp :id last) today-list)}
              unique-time {:time (make-time-unique (:time indicators) id)}
              open-price {:open-price (when (open? indicators) (:current-price indicators))}
              close-price {:close-price (when (close? indicators) (:current-price indicators))}
              data (merge indicators open-price close-price id unique-time)]
-        (log/info indicators)
+        (log/info data)
         (Thread/sleep 1000)
-        (visual/update-graph! data name)))))
+        (visual/update-graph! data name))
+      (recur (rest list) today-list (second (pop list))))))
 
 (defmethod start! :prod [_] (println "hello prod"))
 

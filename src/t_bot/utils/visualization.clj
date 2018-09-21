@@ -4,10 +4,11 @@
 
 (defn update-graph! [{:keys [ time price-average price-exponential upper-band lower-band
                               current-price open-price close-price signal id] :as indicators} name]
-  (let [ n-data (count indicators)
+  (let [ n-data 8
+         cross (and signal price-exponential)
          y-axis [ [current-price] [upper-band] [lower-band]
                   [price-average] [price-exponential] [open-price] [close-price]
-                  [signal]]
+                  [cross]]
          x-axis (vec (repeat n-data [time]))
          traces (vec (range n-data))]
     (j/update-graph!
@@ -32,7 +33,10 @@
 
 (defn graph! [name]
   (j/graph!
+
+                                        ;id
     name
+                                        ;data
     [ { :x []
         :y []
         :type "line"
@@ -65,7 +69,7 @@
         :type "scatter"
         :mode "markers"
         :name "open"
-        :marker {:line { :width 3}
+        :marker { :line { :width 3}
                   :opacity 0.5
                   :size 12
                   :symbol "circle-open"}}
@@ -85,6 +89,7 @@
         :type "scatter"
         :mode "markers"
         :name "cross"
-        :marker { :line { :width 3}
-                  :size 10
+        :marker { :line { :width 2}
+                  :size 8
+                  :opacity 0.8
                   :symbol "circle-close"}}]))
