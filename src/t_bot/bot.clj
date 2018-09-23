@@ -1,70 +1,26 @@
 (ns t-bot.bot
   (:require
-    [jutsu.core :as j]
-
     [t-bot.utils.market-generator :as market-generator]
     [t-bot.utils.visualization :as visual]
     [t-bot.indicators :as indicators]
     [t-bot.utils.utils :as utils]
+    [t-bot.trade :as trade]
+    [t-bot.platforms :as platform]
 
     [clj-http.client :as client]
     [throttler.core :refer [throttle-fn]]
     [clojure.edn :as edn]
     [clojure.string :as str]
-    [clj-time.coerce :as time-c]
-    [clj-time.format :as time-f]
-
     [clojure.tools.logging :as log]
 
     [clojure.core.async :as async :refer [go go-loop chan close! <! >!]]))
-
-(def ^:const BINANCE :binance)
-
-
-(def ^:private rate-limit 20)
-(def ^:private throttle (throttle-fn identity rate-limit :second))
-
-(def ^:private config (edn/read-string (clojure.core/slurp "resources/config.edn")))
-
-(defn create-url [query base-endpoint]
-  (str base-endpoint query))
-
-(defn safe-println
-  "For concurrent console print."
-  [& more]
-  (.write *out* (str (str/join " " more) "\n")))
-
-(defn logger [url params]
-  (safe-println "Calling: " url " with parameters: " params)
-  url)
-
-(defn get-response
-  ([url] (get-response url {} true))
-  ([url params] (get-response url params true))
-  ([url params ex?]
-   (-> url
-     throttle
-     (logger params)
-     (client/get { :as                 :auto
-                   :query-params       params
-                   :validate-redirects false
-                   :cookie-policy      :standard
-                   :throw-exceptions   ex?}))))
-
-(defn- parse-date [in-long]
-  (let [ full-f (time-f/formatters :date-hour-minute-second-ms)
-         short-f (time-f/formatters :hour-minute-second-ms)
-         date-time (time-c/from-long in-long)
-         full-date (time-f/unparse full-f date-time)
-         short-date (time-f/unparse short-f date-time)]
-    {:short short-date :full full-date}))
 
 (defn- parse-trade [trade]
   (let [keywordized (zipmap (map keyword (keys trade)) (vals trade))]
     (as-> keywordized t
       (update t :price (comp bigdec edn/read-string))
       (update t :qty edn/read-string)
-      (assoc t :time (parse-date (:time keywordized))))))
+      (assoc t :time (utils/parse-date (:time keywordized))))))
 
 (defn- parse-response [response]
     (map parse-trade (:body response)))
@@ -75,43 +31,38 @@
   ([platform symb limit]
     (let [ endpoints (platform (edn/read-string (clojure.core/slurp "resources/endpoints.edn")))
            url (create-url (:ticks endpoints) (:base endpoints))]
-      (parse-response (get-response url {:symbol symb :limit limit})))))
-
-;; TODO; freefall
-;; TODO: UNIFY
-(defn- open?
-  [{:keys [current-price prev-price upper-band lower-band signal]}]
-  #_(when-not (identical? :down signal))
-  (and (<= current-price lower-band) #_(> current-price prev-price)))
-
-(defn- close?
-  [{:keys [current-price prev-price upper-band lower-band signal]}]
-  #_(when-not (identical? :up signal))
-  (and (>= current-price upper-band) #_(< current-price prev-price)))
+      (parse-response (utils/get-response url {:symbol symb :limit limit})))))
 
 (defmulti start! identity)
 
-(defn make-time-unique [time weight]
-  (str (:short time) (rem (:id weight) 100)))
-
 (defmethod start! :dev [_]
   (let [ name "TEST-DATA"
-         tick-list (get-ticks! BINANCE "ADABTC" 1000)
+         qnt 20
+         config (platform/BINANCE (edn/read-string (clojure.core/slurp "resources/config.edn")))
+         trading-fee (:trading-fee config)
+         tick-list (get-ticks! platform/BINANCE "BTCUSDT" 1000)
          partitioned-ticks (partition 20 1 tick-list)] ;; TODO: review price order
                                         ; _ (visualization/build-graph! 3030 "TEST-DATA")]
     (loop [ list partitioned-ticks
             yest-list (first partitioned-ticks)
-            today-list (second partitioned-ticks)]
+            today-list (second partitioned-ticks)
+            opened-position nil]
       (let [ indicators (indicators/get-indicators yest-list today-list)
              id {:id ((comp :id last) today-list)}
-             unique-time {:time (make-time-unique (:time indicators) id)}
-             open-price {:open-price (when (open? indicators) (:current-price indicators))}
-             close-price {:close-price (when (close? indicators) (:current-price indicators))}
-             data (merge indicators open-price close-price id unique-time)]
+             unique-time {:time (utils/make-time-unique (:time indicators) (:id id))}
+             current-price (:current-price indicators)
+             opened! (or opened-position
+                       (when (trade/open? current-price indicators)
+                         (trade/open! current-price qnt trading-fee unique-time)))
+             closed! (when opened-position
+                       (when (trade/close? current-price (:price opened-position) qnt indicators)
+                         (trade/close! current-price qnt trading-fee unique-time)))
+             data (merge indicators id unique-time
+                    (or closed!))]
         (log/info data)
         (Thread/sleep 1000)
-        (visual/update-graph! data name))
-      (recur (rest list) today-list (second (pop list))))))
+        (visual/update-graph! data name)
+        (recur (rest list) today-list (second (rest list)) (:open-price open-price))))))
 
 (defmethod start! :prod [_] (println "hello prod"))
 
@@ -120,10 +71,6 @@
   (visual/graph! "TEST-DATA")
   (start! :dev))
 
-;; FIXME: trades of the same time
-
-(map (get-ticks! BINANCE "ADABTC" 20))
-
 
 ;; TODO: logging to file
 ;; TODO: console control
@@ -131,3 +78,4 @@
 ;; TODO: request timeout
 ;; TODO: RSI
 ;; TODO: tests :)
+;; TODO: standard deviation comparison
