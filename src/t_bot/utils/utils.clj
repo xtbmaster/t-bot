@@ -5,6 +5,7 @@
 
     [clj-http.client :as client]
     [clojure.string :as str]
+    [clojure.edn :as edn]
     [throttler.core :refer [throttle-fn]]))
 
 (def ^:private rate-limit 20)
@@ -43,3 +44,6 @@
 
 (defn make-time-unique [time id]
   (str (:short time) (rem id 100)))
+
+(defn edn-slurp [url]
+  (edn/read-string (clojure.core/slurp url)))

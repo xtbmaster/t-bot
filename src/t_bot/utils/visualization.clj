@@ -3,7 +3,7 @@
     [jutsu.core :as j]))
 
 (defn update-graph! [{:keys [ time price-average price-exponential upper-band lower-band
-                              current-price open-price close-price signal id] :as indicators} name]
+                              current-price open-price close-price signal] :as indicators} name]
   (let [ n-data 8
          cross (and signal price-exponential)
          y-axis [ [current-price] [upper-band] [lower-band]
