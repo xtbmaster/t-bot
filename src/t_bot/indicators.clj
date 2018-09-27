@@ -43,13 +43,13 @@
       { :upper-band upper-band
         :lower-band lower-band})))
 
-(defn moving-averages-signals
+(defn moving-averages-crossover
   ([today-list yest-list]
     (let [ yest-sma (simple-moving-average yest-list)
            yest-ema (exponential-moving-average yest-list)
            today-sma (simple-moving-average today-list)
            today-ema (exponential-moving-average today-list)]
-      (moving-averages-signals yest-sma yest-ema today-sma today-ema)))
+      (moving-averages-crossover yest-sma yest-ema today-sma today-ema)))
   ([yest-sma yest-ema today-sma today-ema]
     (let [ signal-up (and (< yest-ema yest-sma) (> today-ema today-sma))
            signal-down (and (> yest-ema yest-sma) (< today-ema today-sma))]
@@ -57,23 +57,51 @@
         signal-up :up
         signal-down :down))))
 
-(defn get-indicators [yest-tick-list today-tick-list]
-  (let [ pure-yest-list (map :price yest-tick-list)
-         pure-today-list (map :price today-tick-list)
-         price (last pure-today-list)
-         prev-price (last pure-yest-list)
-         sma (simple-moving-average pure-today-list)
-         ema (exponential-moving-average pure-today-list)
-         boll (bollinger-band pure-today-list sma)
-         macd (moving-averages-signals pure-today-list pure-yest-list)]
-    { :current-price price
+#_(defn get-indicators
+    ([yest-tick-list today-tick-list] (get-indicators yest-tick-list today-tick-list {}))
+    ([yest-tick-list today-tick-list {:keys [default-signal] :as defaults}]
+      (let [ pure-yest-list (map :price yest-tick-list)
+             pure-today-list (map :price today-tick-list)
+             price (last pure-today-list)
+             prev-price (last pure-yest-list)
+             sma (simple-moving-average pure-today-list)
+             ema (exponential-moving-average pure-today-list)
+             boll (bollinger-band pure-today-list sma)
+             macd (moving-averages-signals pure-today-list pure-yest-list)]
+        { :current-price price
+          :prev-price prev-price
+          :upper-band (:upper-band boll)
+          :lower-band (:lower-band boll)
+          :price-average sma
+          :price-exponential ema
+          :signal (or macd default-signal)
+          :time ((comp :time last) today-tick-list)})))
+
+(defn moving-averages-signals [tick-list]
+  (let [ sma (simple-moving-average tick-list)
+         ema (exponential-moving-average tick-list)]
+    (cond
+      (> ema sma) :up
+      (< ema sma) :down
+      :else :flat)))
+
+(defn get-indicators [tick-list]
+  (let [ pure-list (map :price tick-list)
+         last-prices (take-last 2 pure-list)
+         current-price (last pure-list)
+         prev-price (first pure-list)
+         sma (simple-moving-average pure-list)
+         ema (exponential-moving-average pure-list)
+         boll (bollinger-band pure-list sma)
+         macd (moving-averages-signals pure-list)]
+    { :current-price current-price
       :prev-price prev-price
       :upper-band (:upper-band boll)
       :lower-band (:lower-band boll)
       :price-average sma
       :price-exponential ema
       :signal macd
-      :time ((comp :time last) today-tick-list)}))
+      :time ((comp :time last) tick-list)}))
 
 
 ;; STREAM DATA
@@ -215,13 +243,10 @@
                                   (< (:price-exponential fst) (:price-average fst)))
                     raw-data fst]
                ;; return either i) :up signal, ii) :down signal or iii) nothing, with just the raw data
-               (if signal-up
-                 (assoc raw-data :signals [{ :signal :up
-                                             :why :moving-average-crossover
-                                             :arguments [fst snd]}])
-                 (if signal-down
-                   (assoc raw-data :signals [{ :signal :down
-                                               :why :moving-average-crossover
-                                               :arguments [fst snd]}])
-                   raw-data))))
+               (assoc raw-data :signals [{ :signal (cond
+                                                     signal-up :up
+                                                     signal-down :down
+                                                     :else :flat)
+                                           :why :moving-average-crossover
+                                           :arguments [fst snd]}])))
         partitioned-join))))

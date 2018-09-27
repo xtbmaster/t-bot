@@ -21,28 +21,33 @@
          tick-list (trade/get-ticks! platform/BINANCE "BTCUSDT" 1000)
          partitioned-ticks (partition 20 1 tick-list)] ;; TODO: review price order
                                         ; _ (visualization/build-graph! 3030 "TEST-DATA")]
-    (loop [ list partitioned-ticks
-            opened-position nil]
+    (loop [ [tick-list & remaining] partitioned-ticks
+            opened-positions {}
+            signal nil]
 
-      (let [ yest-list (first list)
-             today-list (second list)
-             indicators (indicators/get-indicators yest-list today-list)
+      (let [ indicators (indicators/get-indicators tick-list)
              current-price (:current-price indicators)
-             opened! (or opened-position
-                       (and (trade/open? current-price indicators)
-                         (trade/open! current-price qnt config)))
-             closed! (and opened-position
-                       (trade/close? current-price (:price opened-position) indicators)
-                       (trade/close! current-price qnt config))
-
+             opens (-> opened-positions
+                     trade/try-to-buy!
+                     trade/try-to-sell!
+                     (dissoc)
+                     (trade/try-to-buy! current-price qnt indicators config)
+                     (trade/try-to-sell! current-price qnt indicators config))
              ;; for graphics
-             unique-time {:time (utils/make-time-unique (:time indicators) ((comp :id last) today-list))}
-             data (merge indicators unique-time {:opened-price (:price opened!)} {:closed-price (:price closed!)})]
+             unique-time {:time (utils/make-time-unique (:time indicators) ((comp :id last) tick-list))}
+             data (merge indicators
+                    unique-time
+                    {:value (:value closed!)}
+                    {:open-price (:price opened!)}
+                    {:close-price (:price closed!)})]
 
-        (log/info data)
-        (Thread/sleep 1000)
-        (visual/update-graph! data name)
-        (recur (rest list) (when-not closed! opened!))))))
+        (log/info (dissoc data :price-exponential :price-average))
+        (Thread/sleep 800)
+        (let [ data-for-graph (cond-> data
+                                opened-position (dissoc data :open-price)
+                                (= signal (:signal indicators)) (dissoc data :signal))]
+          (visual/update-graph! data-for-graph name))
+        (recur remaining (when-not closed! opened!) (:signal indicators))))))
 
 (defmethod start! :prod [_] (println "hello prod"))
 
@@ -52,10 +57,15 @@
   (start! :dev))
 
 
-;; TODO: logging to file
 ;; TODO: console control
 ;; TODO: connection lose handling
 ;; TODO: request timeout
 ;; TODO: RSI
-;; TODO: tests :)
 ;; TODO: standard deviation comparison
+;; TODO: relative lower-upper-band price difference in %
+;; TODO: std deviation limit constraint (flat cases)
+;; TODO: open several positions
+
+;; TODO: logging to file
+;; TODO: tests :)
+;; TODO; freefall

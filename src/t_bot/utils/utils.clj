@@ -47,3 +47,6 @@
 
 (defn edn-slurp [url]
   (edn/read-string (clojure.core/slurp url)))
+
+(defn gen-id []
+  (java.util.UUID/randomUUID))
