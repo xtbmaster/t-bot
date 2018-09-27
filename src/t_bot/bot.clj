@@ -7,8 +7,6 @@
     [t-bot.trade :as trade]
     [t-bot.platforms :as platform]
 
-    [clj-http.client :as client]
-    [throttler.core :refer [throttle-fn]]
     [clojure.tools.logging :as log]
     ))
 
@@ -28,11 +26,8 @@
       (let [ indicators (indicators/get-indicators tick-list)
              current-price (:current-price indicators)
              opens (-> opened-positions
-                     trade/try-to-buy!
-                     trade/try-to-sell!
-                     (dissoc)
-                     (trade/try-to-buy! current-price qnt indicators config)
-                     (trade/try-to-sell! current-price qnt indicators config))
+                     (trade/try-to-open! current-price qnt indicators config)
+                     (trade/try-to-close! current-price qnt indicators config))
              ;; for graphics
              unique-time {:time (utils/make-time-unique (:time indicators) ((comp :id last) tick-list))}
              data (merge indicators

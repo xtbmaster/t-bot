@@ -1,7 +1,10 @@
 (ns t-bot.trade
   (:require
+    [t-bot.utils.utils :as utils]
+
     [clojure.edn :as edn]
-    [t-bot.utils.utils :as utils]))
+    [clojure.tools.logging :as log]
+    ))
 
 
 ;; TODO: UNIFY?
@@ -33,13 +36,17 @@
 
 (defn open!
   [price qnt config]
-  (let [ fee (:trading-fee config)]
-    (fix-postion! price qnt fee)))
+  (let [ fee (:trading-fee config)
+         open (fix-postion! price qnt fee)]
+    (log/info (str "OPEN AMOUNT: " (:value open) "\nPRICE: " (:price open) "\nAT: " (:time open)))
+    open))
 
 (defn close!
   [price qnt config] ;; TODO: review price necessity...if we open with a market price
-  (let [ fee (:trading-fee config)]
-    (fix-postion! price qnt fee)))
+  (let [ fee (:trading-fee config)
+         close (fix-postion! price qnt fee)]
+    (log/info (str "CLOSE AMOUNT: " (:value close) "\nPRICE: " (:price close) "\nAT: " (:time close)))
+    close))
 
 (defn- parse-trade [trade]
   (let [keywordized (zipmap (map keyword (keys trade)) (vals trade))]
@@ -59,16 +66,14 @@
            url (utils/create-url (:ticks endpoints) (:base endpoints))]
       (parse-response (utils/get-response url {:symbol symb :limit limit})))))
 
-(defn try-to-buy! [opens current-price qnt indicators config]
+(defn try-to-open! [opens current-price qnt indicators config]
   (merge opens
     (when (open? current-price indicators)
       (open! current-price qnt config))))
 
-(defn try-to-sell! [opens current-price qnt indicators config]
-  (filter )
-  (map (fn [current-price qnt indicators config]
-         )
-    opens)
-  (dissoc opened-position
-    (trade/close? current-price (:price opened-position) indicators)
-    (trade/close! current-price qnt config))
+(defn try-to-close! [opens current-price indicators config]
+  (let [ ids-to-close (filter #(close? current-price (:price %) indicators) opens)
+         qnt (apply + (map :qnt opens))]
+    (do
+      (close! current-price qnt config)
+      (apply dissoc opens ids-to-close))))
