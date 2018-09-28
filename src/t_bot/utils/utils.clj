@@ -48,5 +48,7 @@
 (defn edn-slurp [url]
   (edn/read-string (clojure.core/slurp url)))
 
-(defn gen-id []
-  (java.util.UUID/randomUUID))
+(defn- new-counter []
+  (partial apply swap! (atom 0) inc []))
+
+(def trade-counter (new-counter)) ;; FIXME: serialized trades between sessions

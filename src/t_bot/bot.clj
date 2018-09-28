@@ -20,21 +20,20 @@
          partitioned-ticks (partition 20 1 tick-list)] ;; TODO: review price order
                                         ; _ (visualization/build-graph! 3030 "TEST-DATA")]
     (loop [ [tick-list & remaining] partitioned-ticks
-            opened-positions {}
+            opens {}
             signal nil]
 
       (let [ indicators (indicators/get-indicators tick-list)
              current-price (:current-price indicators)
-             opens (-> opened-positions
-                     (trade/try-to-open! current-price qnt indicators config)
-                     (trade/try-to-close! current-price qnt indicators config))
+             opened-positions (trade/try-to-open! opens current-price qnt indicators config)
+             closed-positions (trade/try-to-close! (:population opened-positions) current-price qnt indicators config)
              ;; for graphics
              unique-time {:time (utils/make-time-unique (:time indicators) ((comp :id last) tick-list))}
              data (merge indicators
                     unique-time
                     {:value (:value closed!)}
-                    {:open-price (:price opened!)}
-                    {:close-price (:price closed!)})]
+                    {:open-price (get-in opened-positions [:last-trade :price])}
+                    {:close-price (get-in closed-positions [:last-trade :price])})]
 
         (log/info (dissoc data :price-exponential :price-average))
         (Thread/sleep 800)
@@ -42,7 +41,7 @@
                                 opened-position (dissoc data :open-price)
                                 (= signal (:signal indicators)) (dissoc data :signal))]
           (visual/update-graph! data-for-graph name))
-        (recur remaining (when-not closed! opened!) (:signal indicators))))))
+        (recur remaining openedpositions (:signal indicators))))))
 
 (defmethod start! :prod [_] (println "hello prod"))
 
@@ -64,3 +63,6 @@
 ;; TODO: logging to file
 ;; TODO: tests :)
 ;; TODO; freefall
+;; TODO: documentation
+;; TODO: write closed postions to a file
+;; TODO: trade statistics
