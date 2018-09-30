@@ -71,42 +71,27 @@
            url (utils/create-url (:ticks endpoints) (:base endpoints))]
       (parse-response (utils/get-response url {:symbol symb :limit limit})))))
 
-(defn try-to-open! [opens current-price qnt indicators config]
-  (if (open? current-price indicators)
-    (let [ opened-postition (open! current-price qnt config)
-           population (merge (:population opens) opened-position)]
-      (-> opens
-        (assoc :last-trade opened-position)
-        (assoc :population population)
-        (update :total-qnt + (:qnt opened-position))
-        (update :total-value + (:value opened-position))))
-    opens))
+(defn- try-to-open! [current-price qnt indicators config]
+  (when (open? current-price indicators)
+    (open! current-price qnt config)))
 
-(defn try-to-close! [opens current-price indicators config]
-  (when-let [ close-list (seq (filter #(close? current-price (:price %) indicators) opens))]
-    { :last-trade (close! current-price (total-qnt close-list) config)
-      :population close-list
-      :total-qnt (total-qnt close-list)
-      :total-value (total-value close-list)}))
+(defn- try-to-close! [open-list current-price indicators config]
+  (when-let [ close-list (seq (filter
+                                #(close? current-price (:price %) indicators)
+                                open-list))]
+    { :trade (close! current-price (total-qnt close-list) config)
+      :population close-list}))
+;; TODO: log history to file
 
-;; (defn try-to-close! [opens current-price indicators config]
-;;   (let [ grouped-list (as-> opens os
-;;                         (group-by #(close? current-price (:price %) indicators) os)
-;;                         (clojure.set/rename-keys os {true :closed false :opened}))
-;;          qnt-to-close (total-qnt (:closed grouped-list))]
-;;     (update grouped-list :closed (close! current-price qnt-to-close config))))
-
-
-;; { :open-positions { :population [{ :id
-;;                                    :time
-;;                                    :price
-;;                                    :qnt
-;;                                    :value}]
-;;                     :total-qnt :total-qnt-of-opened-postions
-;;                     :total-value :total-value}}
-
-;; {:closed-positions { :population [{ :id [:list-of-maps-of-OPENED-positions]
-;;                                     :total-qnt
-;;                                     :total-value}]
-;;                      :total-qnt :total-qnt-of-closed-postions
-;;                      :total-value :total-value}}
+(defn update-positions! [opens qnt indicators config]
+  (let [ new-open (try-to-open! (:current-price indicators) qnt indicators config)
+         new-close (try-to-close! (:population opens) (:current-price indicators) indicators config)
+         cleared-list (utils/conj-some
+                        (remove (set (:population new-close)) (:population opens))
+                        new-open)]
+    (-> opens
+      (utils/assoc-some :last-open new-open)
+      (utils/assoc-some :last-close (:trade new-close))
+      (assoc :population cleared-list)
+      (assoc :total-qnt (total-qnt cleared-list))
+      (assoc :total-value (total-value cleared-list)))))

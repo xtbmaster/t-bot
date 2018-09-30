@@ -52,3 +52,17 @@
   (partial apply swap! (atom 0) inc []))
 
 (def trade-counter (new-counter)) ;; FIXME: serialized trades between sessions
+
+(defn conj-some
+  "Like conj, but ignores xs that are nil."
+  ([] [])
+  ([coll] coll)
+  ([coll & xs]
+    (apply conj coll (remove nil? xs))))
+
+(defn assoc-some
+  "Like assoc, but skip the assoc if v is nil"
+  [m k v]
+  (if-not (nil? v)
+    (assoc m k v)
+    m))

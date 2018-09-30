@@ -19,29 +19,34 @@
          tick-list (trade/get-ticks! platform/BINANCE "BTCUSDT" 1000)
          partitioned-ticks (partition 20 1 tick-list)] ;; TODO: review price order
                                         ; _ (visualization/build-graph! 3030 "TEST-DATA")]
-    (loop [ [tick-list & remaining] partitioned-ticks
-            opens {}
+    (loop [ [tick-list & remaining-ticks] partitioned-ticks
+            opens { :population []
+                    :last-open nil
+                    :last-close nil
+                    :total-qnt 0
+                    :total-value 0}
             signal nil]
 
       (let [ indicators (indicators/get-indicators tick-list)
-             current-price (:current-price indicators)
-             opened-positions (trade/try-to-open! opens current-price qnt indicators config)
-             closed-positions (trade/try-to-close! (:population opened-positions) current-price qnt indicators config)
+             portfolio (trade/update-positions! opens indicators config)
              ;; for graphics
              unique-time {:time (utils/make-time-unique (:time indicators) ((comp :id last) tick-list))}
              data (merge indicators
                     unique-time
-                    {:value (:value closed!)}
-                    {:open-price (get-in opened-positions [:last-trade :price])}
-                    {:close-price (get-in closed-positions [:last-trade :price])})]
+                    {:open-price (get-in portfolio [:last-open :price])}
+                    {:close-price (get-in portfolio [:last-close :price])})]
 
-        (log/info (dissoc data :price-exponential :price-average))
+        (log/info (str
+                    "TIME: " unique-time
+                    "\nPRICE: " (:current-price indicators)
+                    "\nTOTAL OPENS " (count (:population portfolio))))
         (Thread/sleep 800)
         (let [ data-for-graph (cond-> data
-                                opened-position (dissoc data :open-price)
+                                (= (:last-open opens) (:last-open portfolio) (dissoc data :open-price))
+                                (= (:last-close opens) (:last-close portfolio) (dissoc data :close-price))
                                 (= signal (:signal indicators)) (dissoc data :signal))]
           (visual/update-graph! data-for-graph name))
-        (recur remaining openedpositions (:signal indicators))))))
+        (recur remaining-ticks portfolio (:signal indicators))))))
 
 (defmethod start! :prod [_] (println "hello prod"))
 
@@ -58,11 +63,9 @@
 ;; TODO: standard deviation comparison
 ;; TODO: relative lower-upper-band price difference in %
 ;; TODO: std deviation limit constraint (flat cases)
-;; TODO: open several positions
 
 ;; TODO: logging to file
 ;; TODO: tests :)
 ;; TODO; freefall
 ;; TODO: documentation
-;; TODO: write closed postions to a file
 ;; TODO: trade statistics
