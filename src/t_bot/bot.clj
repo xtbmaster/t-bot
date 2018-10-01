@@ -1,10 +1,10 @@
 (ns t-bot.bot
   (:require
-    [t-bot.utils.market-generator :as market-generator]
-    [t-bot.utils.visualization :as visual]
+    [t-bot.auxiliary.market-generator :as market-generator]
+    [t-bot.auxiliary.visualization :as visual]
     [t-bot.indicators :as indicators]
-    [t-bot.utils.utils :as utils]
-    [t-bot.trade :as trade]
+    [t-bot.auxiliary.utils :as utils]
+    [t-bot.trade.trade :as trade]
     [t-bot.platforms :as platform]
 
     [clojure.tools.logging :as log]
@@ -28,7 +28,7 @@
             signal nil]
 
       (let [ indicators (indicators/get-indicators tick-list)
-             portfolio (trade/update-positions! opens indicators config)
+             portfolio (trade/update-positions! opens qnt indicators config)
              ;; for graphics
              unique-time {:time (utils/make-time-unique (:time indicators) ((comp :id last) tick-list))}
              data (merge indicators
@@ -36,14 +36,16 @@
                     {:open-price (get-in portfolio [:last-open :price])}
                     {:close-price (get-in portfolio [:last-close :price])})]
 
-        (log/info (str
-                    "TIME: " unique-time
-                    "\nPRICE: " (:current-price indicators)
-                    "\nTOTAL OPENS " (count (:population portfolio))))
+        (when (or (zero? (count (:population portfolio)))
+                (not= (count (:population portfolio)) (count (:population opens))))
+          (log/info (str
+                      "TIME: " (:time unique-time) " | "
+                      " PRICE: " (:current-price indicators) " | "
+                      " TOTAL OPENS: " (count (:population portfolio)))))
         (Thread/sleep 800)
         (let [ data-for-graph (cond-> data
-                                (= (:last-open opens) (:last-open portfolio) (dissoc data :open-price))
-                                (= (:last-close opens) (:last-close portfolio) (dissoc data :close-price))
+                                (= (:last-open opens) (:last-open portfolio)) (dissoc data :open-price)
+                                (= (:last-close opens) (:last-close portfolio)) (dissoc data :close-price)
                                 (= signal (:signal indicators)) (dissoc data :signal))]
           (visual/update-graph! data-for-graph name))
         (recur remaining-ticks portfolio (:signal indicators))))))

@@ -1,6 +1,7 @@
-(ns t-bot.trade
+(ns t-bot.trade.trade
   (:require
-    [t-bot.utils.utils :as utils]
+    [t-bot.auxiliary.utils :as utils]
+    [t-bot.trade.utils :as trade-utils]
 
     [clojure.edn :as edn]
     [clojure.tools.logging :as log]
@@ -18,13 +19,6 @@
   (when-not (identical? :up signal)
     (and (> current-price open-price) (>= current-price upper-band))))
 
-(defn calculate-value
-  ([price qnt] (calculate-value price qnt 0))
-  ([price qnt fee-percentage]
-    (let [ revenue (with-precision 10 (* price qnt))
-           fee-amount (with-precision 10 (/ (* fee-percentage revenue) 100))]
-      (- revenue fee-amount))))
-
 ;; TODO: remove after implementing api orders
 (defn fix-postion! [price qnt fee]
   { :id (utils/trade-counter)
@@ -37,14 +31,14 @@
   [price qnt config]
   (let [ fee (:trading-fee config)
          open (fix-postion! price qnt fee)]
-    (log/info (str "OPEN AMOUNT: " (:value open) "\nPRICE: " (:price open) "\nAT: " (:time open)))
+    (log/info (str "\n===>>> OPEN AMOUNT: " (:value open) " | PRICE: " (:price open) " | QNT: " qnt " | AT: " (:time open)) " ===>>>")
     open))
 
 (defn close!
   [price qnt config] ;; TODO: review price necessity...if we open with a market price
   (let [ fee (:trading-fee config)
          close (fix-postion! price qnt fee)]
-    (log/info (str "CLOSE AMOUNT: " (:value close) "\nPRICE: " (:price close) "\nAT: " (:time close)))
+    (log/info (str "\n<<<=== CLOSE AMOUNT: " (:value close) " | PRICE: " (:price close) " | QNT: " qnt " | AT: " (:time close)) " <<<===")
     close))
 
 (defn- parse-trade [trade]
@@ -81,6 +75,7 @@
                                 open-list))]
     { :trade (close! current-price (total-qnt close-list) config)
       :population close-list}))
+
 ;; TODO: log history to file
 
 (defn update-positions! [opens qnt indicators config]
