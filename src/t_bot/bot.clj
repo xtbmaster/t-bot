@@ -2,10 +2,10 @@
   (:require
     [t-bot.auxiliary.market-generator :as market-generator]
     [t-bot.auxiliary.visualization :as visual]
-    [t-bot.indicators :as indicators]
+    [t-bot.trade.indicators :as indicators]
     [t-bot.auxiliary.utils :as utils]
     [t-bot.trade.trade :as trade]
-    [t-bot.platforms :as platform]
+    [t-bot.trade.platforms :as platforms]
 
     [clojure.tools.logging :as log]
     ))
@@ -14,11 +14,13 @@
 
 (defmethod start! :dev [_]
   (let [ name "TEST-DATA"
-         qnt 20
-         config (platform/BINANCE (utils/edn-slurp "resources/config.edn"))
-         tick-list (trade/get-ticks! platform/BINANCE "BTCUSDT" 1000)
+         qnt 20 ;; TODO: move to args
+         config (utils/edn-slurp "resources/config.edn")
+         pair (get-in platforms/BINANCE [:pairs :btcusdt]) ;; TODO: move to args
+         platform-name (:name platforms/BINANCE) ;; TODO: move to args
+         tick-list (trade/get-ticks! platform-name pair 1000)
          partitioned-ticks (partition 20 1 tick-list)] ;; TODO: review price order
-                                        ; _ (visualization/build-graph! 3030 "TEST-DATA")]
+                                        ; _ (visualization/build-graph! 3030 NAME)]
     (loop [ [tick-list & remaining-ticks] partitioned-ticks
             opens { :population []
                     :last-open nil
@@ -28,7 +30,14 @@
             signal nil]
 
       (let [ indicators (indicators/get-indicators tick-list)
-             portfolio (trade/update-positions! opens qnt indicators config)
+             trade-params { :limit-ease (get-in config [:trading :common :order-limit-ease])
+                            :indicators indicators
+                            :fee (get-in config [:trading platform-name :trading-fee])
+                            :qnt qnt
+                            :pair pair
+                            :platform-name platform-name}
+             portfolio (trade/update-positions! opens trade-params (:trading config))
+
              ;; for graphics
              unique-time {:time (utils/make-time-unique (:time indicators) ((comp :id last) tick-list))}
              data (merge indicators
@@ -36,12 +45,14 @@
                     {:open-price (get-in portfolio [:last-open :price])}
                     {:close-price (get-in portfolio [:last-close :price])})]
 
+        ;; logging
         (when (or (zero? (count (:population portfolio)))
                 (not= (count (:population portfolio)) (count (:population opens))))
           (log/info (str
                       "TIME: " (:time unique-time) " | "
                       " PRICE: " (:current-price indicators) " | "
                       " TOTAL OPENS: " (count (:population portfolio)))))
+
         (Thread/sleep 800)
         (let [ data-for-graph (cond-> data
                                 (= (:last-open opens) (:last-open portfolio)) (dissoc data :open-price)
@@ -58,12 +69,12 @@
   (start! :dev))
 
 
+
 ;; TODO: console control
 ;; TODO: connection lose handling
 ;; TODO: request timeout
 ;; TODO: RSI
 ;; TODO: standard deviation comparison
-;; TODO: relative lower-upper-band price difference in %
 ;; TODO: std deviation limit constraint (flat cases)
 
 ;; TODO: logging to file
