@@ -72,8 +72,8 @@
           :prev-price prev-price
           :upper-band (:upper-band boll)
           :lower-band (:lower-band boll)
-          :price-average sma
-          :price-exponential ema
+          :sma sma
+          :ema ema
           :signal (or macd default-signal)
           :time ((comp :time last) today-tick-list)})))
 
@@ -98,9 +98,10 @@
       :prev-price prev-price
       :upper-band (:upper-band boll)
       :lower-band (:lower-band boll)
-      :price-average sma
-      :price-exponential ema
-      :signal macd
+      :sma sma
+      :ema ema
+      :signal { :prev nil
+                :current macd}
       :time ((comp :time last) tick-list)}))
 
 
@@ -112,7 +113,7 @@
   (let [ start-index tick-window
          { :keys [input output etal]
            :or { input :price
-                 output :price-average
+                 output :sma
                  etal [:price :time]}} options]
     (map (fn [ech]
            (let [ tsum (reduce (fn [rr ee]
@@ -134,7 +135,7 @@
     (let [ k (/ 2 (+ tick-window 1))
            { :keys [input output etal]
              :or { input :price
-                   output :price-exponential
+                   output :ema
                    etal [:price :time]}} options] ;; FIXME: remove?
       ;; 2. get the simple-moving-average for a given tick - 1
       (last (reductions (fn [rslt ech]
@@ -171,8 +172,8 @@
                    (= (:time titem) (:time sitem) (:time eitem)))
                { :time (:time titem)
                  :price (:price titem)
-                 :price-average (:price-average sitem)
-                 :price-exponential (:price-exponential eitem)}
+                 :sma (:sma sitem)
+                 :ema (:ema eitem)}
                nil))
         trimmed-ticks
         sma-list
@@ -194,7 +195,7 @@
     ;; At each step, the Standard Deviation will be: the square root of the variance (average of the squared differences from the Mean)
     (map (fn [ech]
            (let [;; get the Moving Average
-                  ma (:price-average ech)
+                  ma (:sma ech)
                   ;; work out the mean
                   mean (/ (reduce (fn [rslt ech]
                                     (+ (:price ech)
@@ -212,7 +213,7 @@
              { :price (:price ech)
                :prev-price ((comp :price second reverse) (:population ech))
                :time (:time ech)
-               :price-average ma
+               :sma ma
                :upper-band (+ ma (with-precision 10 (* 2 standard-deviation)))
                :lower-band (- ma (with-precision 10 (* 2 standard-deviation)))}))
       sma-list)))
@@ -236,11 +237,11 @@
       (map (fn [[fst snd]]
              (let [
                     ;; in the first element, has the ema crossed above the sma from the second element
-                    signal-up (and (< (:price-exponential snd) (:price-average snd))
-                                (> (:price-exponential fst) (:price-average fst)))
+                    signal-up (and (< (:ema snd) (:sma snd))
+                                (> (:ema fst) (:sma fst)))
                     ;; in the first element, has the ema crossed below the sma from the second element
-                    signal-down (and (> (:price-exponential snd) (:price-average snd))
-                                  (< (:price-exponential fst) (:price-average fst)))
+                    signal-down (and (> (:ema snd) (:sma snd))
+                                  (< (:ema fst) (:sma fst)))
                     raw-data fst]
                ;; return either i) :up signal, ii) :down signal or iii) nothing, with just the raw data
                (assoc raw-data :signals [{ :signal (cond

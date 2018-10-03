@@ -5,6 +5,7 @@
     [t-bot.trade.indicators :as indicators]
     [t-bot.auxiliary.utils :as utils]
     [t-bot.trade.trade :as trade]
+    [t-bot.trade.utils :as trade-utils]
     [t-bot.trade.platforms :as platforms]
 
     [clojure.tools.logging :as log]
@@ -14,11 +15,10 @@
 
 (defmethod start! :dev [_]
   (let [ name "TEST-DATA"
-         qnt 20 ;; TODO: move to args
          config (utils/edn-slurp "resources/config.edn")
-         pair (get-in platforms/BINANCE [:pairs :btcusdt]) ;; TODO: move to args
+         pair (-> platforms/BINANCE :pairs :btcusdt) ;; TODO: move to args
          platform-name (:name platforms/BINANCE) ;; TODO: move to args
-         tick-list (trade/get-ticks! platform-name pair 1000)
+         tick-list (trade-utils/get-ticks! platform-name pair 1000)
          partitioned-ticks (partition 20 1 tick-list)] ;; TODO: review price order
                                         ; _ (visualization/build-graph! 3030 NAME)]
     (loop [ [tick-list & remaining-ticks] partitioned-ticks
@@ -29,11 +29,13 @@
                     :total-value 0}
             signal nil]
 
-      (let [ indicators (indicators/get-indicators tick-list)
-             trade-params { :limit-ease (get-in config [:trading :common :order-limit-ease])
+      (let [ indicators (-> (indicators/get-indicators tick-list)
+                          (assoc-in [:signal :prev] signal))
+             trade-params { :limit-factor (-> config :trading :common :order-limit-factor)
+                            :opens-limit (-> config :trading :common :open-positions-limit)
                             :indicators indicators
-                            :fee (get-in config [:trading platform-name :trading-fee])
-                            :qnt qnt
+                            :fee (-> config :trading platform-name :trading-fee)
+                            :qnt (-> config :trading :common :trade-qnt)
                             :pair pair
                             :platform-name platform-name}
              portfolio (trade/update-positions! opens trade-params (:trading config))
@@ -42,8 +44,8 @@
              unique-time {:time (utils/make-time-unique (:time indicators) ((comp :id last) tick-list))}
              data (merge indicators
                     unique-time
-                    {:open-price (get-in portfolio [:last-open :price])}
-                    {:close-price (get-in portfolio [:last-close :price])})]
+                    {:open-price (-> portfolio :last-open :price)}
+                    {:close-price (-> portfolio :last-close :price)})]
 
         ;; logging
         (when (or (zero? (count (:population portfolio)))
@@ -57,9 +59,9 @@
         (let [ data-for-graph (cond-> data
                                 (= (:last-open opens) (:last-open portfolio)) (dissoc data :open-price)
                                 (= (:last-close opens) (:last-close portfolio)) (dissoc data :close-price)
-                                (= signal (:signal indicators)) (dissoc data :signal))]
+                                (= signal (-> indicators :signal :current)) (dissoc data :signal))]
           (visual/update-graph! data-for-graph name))
-        (recur remaining-ticks portfolio (:signal indicators))))))
+        (recur remaining-ticks portfolio (-> indicators :signal :current))))))
 
 (defmethod start! :prod [_] (println "hello prod"))
 
@@ -68,8 +70,7 @@
   (visual/graph! "TEST-DATA")
   (start! :dev))
 
-
-
+;; TODO: trading on bearish market
 ;; TODO: console control
 ;; TODO: connection lose handling
 ;; TODO: request timeout
