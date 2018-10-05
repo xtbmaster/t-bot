@@ -54,7 +54,7 @@
   (when-let [ close-list (seq (filter
                                 #(close? current-price (:price %) limit-factor indicators)
                                 open-list))]
-    { :trade (close! current-price (trade-utils/get-total :qnt close-list) fee config)
+    { :trade (close! current-price (utils/get-sum :qnt close-list) fee config)
       :population close-list}))
 
 ;; TODO: log history to file
@@ -70,5 +70,5 @@
       (utils/assoc-some :last-open new-open)
       (utils/assoc-some :last-close close-trade)
       (assoc :population cleared-list)
-      (assoc :total-qnt (trade-utils/get-total :qnt cleared-list))
-      (assoc :total-value (trade-utils/get-total :value cleared-list)))))
+      (assoc :total-qnt (utils/get-sum :qnt cleared-list))
+      (assoc :total-value (utils/get-sum :value cleared-list)))))

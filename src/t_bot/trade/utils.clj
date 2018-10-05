@@ -6,9 +6,9 @@
 
 (defn adjusted-limit
   "Calculates a new order-limit band according to `ease-factor` (%).
-   Function is based on boll indicator and uses `sma` and upper or
-   lower `band` depending on whether we need to change a sell or
-   buy limit."
+  Function is based on boll indicator and uses `sma` and upper or
+  lower `band` depending on whether we need to change a sell or
+  buy limit."
   [sma band ease-factor]
   (let [ factor (/ ease-factor 100)
          dif (- sma band)
@@ -22,9 +22,6 @@
    (let [ revenue (with-precision 10 (* price qnt))
           fee-amount (with-precision 10 (/ (* fee-percentage revenue) 100))]
      (- revenue fee-amount))))
-
-(defn get-total [indicator trade-list]
-  (apply + (map indicator trade-list)))
 
 (defn- parse-trade [trade]
   (let [keywordized (zipmap (map keyword (keys trade)) (vals trade))]
@@ -43,3 +40,18 @@
    (let [ endpoints (platform (utils/edn-slurp "resources/endpoints.edn"))
           url (utils/create-url (:ticks endpoints) (:base endpoints))]
      (parse-response (utils/get-response url {:symbol symb :limit limit})))))
+
+(defn- market-direction
+  "Can be used to find out whether there was a solid
+  bullish or bearish trend in the last `period`. `f`
+  receives '>' to check for a down trend and '<' for an up
+  trend".
+  [f period tick-list]
+  (every? #(f (first %) (second %))
+    (take period tick-list)))
+
+(defn up-market? [period tick-list]
+  (market-direction < period tick-list)) ;; TODO: check operator
+
+(defn down-market? [period tick-list]
+  (market-direction > period tick-list)) ;; TODO: same here

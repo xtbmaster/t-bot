@@ -74,7 +74,8 @@
 ;; TODO: console control
 ;; TODO: connection lose handling
 ;; TODO: request timeout
-;; TODO: RSI
+;; TODO: RSI graphic
+;; TODO: boll signals
 ;; TODO: standard deviation comparison
 ;; TODO: std deviation limit constraint (flat cases)
 

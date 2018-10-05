@@ -1,47 +1,4 @@
-(ns t-bot.trade.indicators)
-
-(defn simple-moving-average [tick-list]
-  (let [ last-tick (last tick-list)
-         n (count tick-list)
-         tsum (reduce + tick-list)]
-    (with-precision 10 (/ tsum n))))
-
-(defn exponential-moving-average [tick-list]
-  (let [ a (/ 2 (+ (count tick-list) 1))
-         ema-list (reduce (fn [res ct]
-                            (conj
-                              res
-                              (+ (with-precision 10 (* a ct))
-                                (with-precision 10 (* (- 1 a) (peek res))))))
-                    [(first tick-list)]
-                    (rest tick-list))]
-    (last ema-list)))
-
-(defn mean [tick-list]
-  (let [ sum (apply + tick-list)
-         count (count tick-list)]
-    (if (pos? count)
-      (with-precision 10 (/ sum count))
-      0)))
-
-(defn standard-deviation [tick-list]
-  (let [ avg (mean tick-list)
-         squares (for [x tick-list]
-                   (let [x-avg (- x avg)]
-                     (with-precision 10 (* x-avg x-avg))))
-         total (count tick-list)]
-    (with-precision 10
-      (Math/sqrt
-        (with-precision 10 (/ (apply + squares) (- total 1)))))))
-
-(defn bollinger-band
-  ([tick-list] (bollinger-band tick-list (simple-moving-average tick-list)))
-  ([tick-list sma]
-    (let [ stdev (standard-deviation tick-list)
-           upper-band (+ sma (with-precision 10 (* stdev 2)))
-           lower-band (- sma (with-precision 10 (* stdev 2)))]
-      { :upper-band upper-band
-        :lower-band lower-band})))
+(ns t-bot.trade.indicators.stream)
 
 (defn moving-averages-crossover
   ([today-list yest-list]
@@ -56,57 +13,6 @@
       (cond
         signal-up :up
         signal-down :down))))
-
-#_(defn get-indicators
-    ([yest-tick-list today-tick-list] (get-indicators yest-tick-list today-tick-list {}))
-    ([yest-tick-list today-tick-list {:keys [default-signal] :as defaults}]
-      (let [ pure-yest-list (map :price yest-tick-list)
-             pure-today-list (map :price today-tick-list)
-             price (last pure-today-list)
-             prev-price (last pure-yest-list)
-             sma (simple-moving-average pure-today-list)
-             ema (exponential-moving-average pure-today-list)
-             boll (bollinger-band pure-today-list sma)
-             macd (moving-averages-signals pure-today-list pure-yest-list)]
-        { :current-price price
-          :prev-price prev-price
-          :upper-band (:upper-band boll)
-          :lower-band (:lower-band boll)
-          :sma sma
-          :ema ema
-          :signal (or macd default-signal)
-          :time ((comp :time last) today-tick-list)})))
-
-(defn moving-averages-signals [tick-list]
-  (let [ sma (simple-moving-average tick-list)
-         ema (exponential-moving-average tick-list)]
-    (cond
-      (> ema sma) :up
-      (< ema sma) :down
-      :else :flat)))
-
-(defn get-indicators [tick-list]
-  (let [ pure-list (map :price tick-list)
-         last-prices (take-last 2 pure-list)
-         current-price (last pure-list)
-         prev-price (first pure-list)
-         sma (simple-moving-average pure-list)
-         ema (exponential-moving-average pure-list)
-         boll (bollinger-band pure-list sma)
-         macd (moving-averages-signals pure-list)]
-    { :current-price current-price
-      :prev-price prev-price
-      :upper-band (:upper-band boll)
-      :lower-band (:lower-band boll)
-      :sma sma
-      :ema ema
-      :signal { :prev nil
-                :current macd}
-      :time ((comp :time last) tick-list)}))
-
-
-;; STREAM DATA
-
 
 (defn simple-moving-average-stream
   [options tick-window tick-list]
@@ -224,12 +130,12 @@
   "Takes baseline time series, along with 2 other moving averages.
   Produces a list of signals where the 2nd moving average overlaps (abouve or below) the first.
   By default, this function will produce a Simple Moving Average and an Exponential Moving Average."
-  ([tick-window tick-list]
+  ([tick-window tick-list
     (let [ ;; sma-list (simple-moving-average nil tick-window tick-list)
            sma-list (simple-moving-average-stream nil tick-window tick-list)
            ema-list (exponential-moving-average-stream nil tick-window tick-list sma-list)]
-      (moving-averages-signals-stream tick-list sma-list ema-list)))
-  ([tick-list sma-list ema-list]
+      (moving-averages-signals-stream tick-list sma-list ema-list))])
+  ([tick-list sma-list ema-list
     ;; create a list where i) tick-list ii) sma-list and iii) ema-list are overlaid
     (let [ joined-list (join-averages-stream tick-list sma-list ema-list)
            partitioned-join (partition 2 1 (remove nil? joined-list))]
@@ -250,4 +156,108 @@
                                                      :else :flat)
                                            :why :moving-average-crossover
                                            :arguments [fst snd]}])))
-        partitioned-join))))
+        partitioned-join))]))
+
+
+(defn relative-strength-index-stream [tick-window tick-list]
+  (let [ twindow (or tick-window 14)
+         window-list (partition twindow 1 tick-list)]
+
+    ;; run over the collection of populations
+    (last (reductions (fn [rslt ech]
+                        ;; each item will be a population of tick-window (default of 14)
+                        (let [pass-one (reduce (fn [rslt ech]
+                                                 (let [ fst (:last-trade-price (first ech))
+                                                        snd (:last-trade-price (second ech))
+                                                        up? (< fst snd)
+                                                        down? (> fst snd)
+                                                        sideways? (and (not up?) (not down?))]
+                                                   (if (or up? down?)
+                                                     (if up?
+                                                       (conj rslt (assoc (first ech) :signal :up))
+                                                       (conj rslt (assoc (first ech) :signal :down)))
+                                                     (conj rslt (assoc (first ech) :signal :sideways)))))
+                                         []
+                                         (partition 2 1 (remove nil? ech)))
+                               up-list (:up (group-by :signal pass-one))
+                               down-list (:down (group-by :signal pass-one))
+                               avg-gains (/ (apply +
+                                              (map :last-trade-price up-list))
+                                           tick-window)
+                               avg-losses (/ (apply +
+                                               (map :last-trade-price down-list))
+                                            tick-window)
+                               rs (if-not (= 0 avg-losses)
+                                    (/ avg-gains avg-losses)
+                                    0)
+                               rsi (- 100 (/ 100 (+ 1 rs)))]
+                          (conj rslt {:last-trade-time (:last-trade-time (first ech))
+                                       :last-trade-price (:last-trade-price (first ech))
+                                       :rs rs
+                                       :rsi rsi})))
+            []
+            window-list))))
+
+(defn sort-bollinger-band-stream [bband]
+  (let [diffs (map (fn [inp]
+                     (assoc inp :difference (- (:upper-band inp) (:lower-band inp))))
+                (remove nil? bband))]
+    (sort-by :difference diffs)))
+
+(defn bollinger-band-signals-stream
+  ([tick-window tick-list]
+    (let [sma-list (simple-moving-average nil tick-window tick-list)
+           bband (bollinger-band tick-window tick-list sma-list)]
+      (bollinger-band-signals tick-window tick-list sma-list bband)))
+  ([tick-window tick-list sma-list bband]
+    (last (reductions (fn [rslt ech-list]
+                        (let [
+                               ;; track widest & narrowest band over the last 'n' ( 3 ) ticks
+                               sorted-bands (sort-bollinger-band ech-list)
+                               most-narrow (take 3 sorted-bands)
+                               most-wide (take-last 3 sorted-bands)
+                               partitioned-list (partition 2 1 (remove nil? ech-list))
+                               upM? (up-market? 10 (remove nil? partitioned-list))
+                               downM? (down-market? 10 (remove nil? partitioned-list))
+                               side-market? (and (not upM?)
+                                              (not downM?))
+                               ;; find last 3 peaks and valleys
+                               peaks-valleys (find-peaks-valleys nil (remove nil? ech-list))
+                               peaks (:peak (group-by :signal peaks-valleys))
+                               valleys (:valley (group-by :signal peaks-valleys))]
+                          (if (empty? (remove nil? ech-list))
+                            (conj rslt nil)
+                            (if (or upM? downM?)
+                              ;; A.
+                              (calculate-strategy-a rslt ech-list most-narrow upM? peaks valleys)
+                              ;; B.
+                              (calculate-strategy-b rslt ech-list most-wide peaks valleys)))
+                          (conj rslt (first ech-list))))
+            []
+            (partition tick-window 1 bband)))))
+
+
+
+
+
+
+
+(defn get-indicators-stream
+  ([yest-tick-list today-tick-list] (get-indicators yest-tick-list today-tick-list {}))
+  ([yest-tick-list today-tick-list {:keys [default-signal] :as defaults}]
+    (let [ pure-yest-list (map :price yest-tick-list)
+           pure-today-list (map :price today-tick-list)
+           price (last pure-today-list)
+           prev-price (last pure-yest-list)
+           sma (simple-moving-average pure-today-list)
+           ema (exponential-moving-average pure-today-list)
+           boll (bollinger-band pure-today-list sma)
+           macd (moving-averages-signals pure-today-list pure-yest-list)]
+      { :current-price price
+        :prev-price prev-price
+        :upper-band (:upper-band boll)
+        :lower-band (:lower-band boll)
+        :sma sma
+        :ema ema
+        :signal (or macd default-signal)
+        :time ((comp :time last) today-tick-list)})))

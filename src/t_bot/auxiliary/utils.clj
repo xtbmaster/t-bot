@@ -66,3 +66,11 @@
   (if-not (nil? v)
     (assoc m k v)
     m))
+
+(defn get-sum
+  "Sums `k`eys of a `coll`ection of maps"
+  [k coll]
+  (->> coll
+    (map k)
+    (filter (complement nil?))
+    (reduce +)))
