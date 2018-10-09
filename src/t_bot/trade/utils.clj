@@ -1,7 +1,6 @@
 (ns t-bot.trade.utils
   (:require
     [t-bot.auxiliary.utils :as utils]
-
     [clojure.edn :as edn]))
 
 (defn adjusted-limit
@@ -45,7 +44,7 @@
   "Can be used to find out whether there was a solid
   bullish or bearish trend in the last `period`. `f`
   receives '>' to check for a down trend and '<' for an up
-  trend".
+  trend."
   [f period tick-list]
   (every? #(f (first %) (second %))
     (take period tick-list)))

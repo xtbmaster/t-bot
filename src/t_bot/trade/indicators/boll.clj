@@ -1,39 +1,41 @@
-(ns t-bot.trade.indicators.boll)
+(ns t-bot.trade.indicators.boll
+  (:require
+   [t-bot.trade.indicators.base :as base]
+   [t-bot.trade.utils :as trade-utils]))
 
 (defn bollinger-band
-  ([tick-list] (bollinger-band tick-list (simple-moving-average tick-list)))
+  ([tick-list] (bollinger-band tick-list (base/simple-moving-average tick-list)))
   ([tick-list sma]
-   (let [ stdev (standard-deviation tick-list)
+   (let [stdev (base/standard-deviation tick-list)
          upper-band (+ sma (with-precision 10 (* stdev 2)))
          lower-band (- sma (with-precision 10 (* stdev 2)))]
-     { :upper-band upper-band
+     {:upper-band upper-band
       :lower-band lower-band})))
 
 
 (defn sort-bollinger-band [bband]
   (let [diffs (map #(assoc % :difference (- (:upper-band %) (:lower-band %)))
-                (remove nil? bband))]
+                   (remove nil? bband))]
     (sort-by :difference diffs)))
 
-(defn find-peaks-valleys [options tick-list]
-  (let [ {input-key :input
-         :or {input-key :last-trade-price}} options]
-    (reduce (fn [rslt ech]
-              (let [fst (input-key (first ech))
-                    snd (input-key (second ech))
-                    thd (input-key (nth ech 2))
-                    valley? (and (and (-> fst nil? not) (-> snd nil? not) (-> thd nil? not))
-                                 (> fst snd)
-                                 (< snd thd))
-                    peak? (and (and (-> fst nil? not) (-> snd nil? not) (-> thd nil? not))
-                               (< fst snd)
-                               (> snd thd))]
-                (cond
-                  peak? (conj rslt (assoc (second ech) :signal :peak))
-                  Valley? (conj rslt (assoc (second ech) :signal :valley)))
-                :else rslt)))
-    []
-    (partition 3 1 tick-list)))
+;; TODO check this
+(defn find-peaks-valleys [{:keys [price] :as tick-list}]
+  (reduce (fn [rslt ech]
+            (let [fst (price (first ech))
+                  snd (price (second ech))
+                  thd (price (nth ech 2))
+                  valley? (and (and (-> fst nil? not) (-> snd nil? not) (-> thd nil? not))
+                               (> fst snd)
+                               (< snd thd))
+                  peak? (and (and (-> fst nil? not) (-> snd nil? not) (-> thd nil? not))
+                             (< fst snd)
+                             (> snd thd))]
+              (cond
+                peak? (conj rslt (assoc (second ech) :signal :peak))
+                valley? (conj rslt (assoc (second ech) :signal :valley)))
+              :else rslt)))
+  []
+  (partition 3 1 tick-list))
 
 (defn calculate-strategy-a [rslt ech-list most-narrow upM? peaks valleys]
   (let [latest-diff (- (:upper-band (last ech-list)) (:lower-band (last ech-list)))
@@ -64,10 +66,9 @@
         more-than-any-wide? (some (fn [inp] (> latest-diff (:difference inp))) most-wide)]
     (if more-than-any-wide?
       ;; B iii RSI Divergence
-      (let [
-            OVER_BOUGHT 80
+      (let [OVER_BOUGHT 80
             OVER_SOLD 20
-            rsi-list (relative-strength-index 14 ech-list)
+            rsi-list (base/relative-strength-index 14 ech-list)
             ;; i. price makes a higher high and
             higher-highPRICE? (if (empty? peaks)
                                 false
@@ -76,8 +77,8 @@
             ;; ii. rsi divergence makes a lower high
             lower-highRSI? (if (or (empty? peaks)
                                    (some #(nil? (:last-trade-time %)) rsi-list)
-                                   #_(not (nil? rsi-list))
-                                   )
+                                   #_(not (nil? rsi-list)))
+
                              false
                              (< (:rsi (last rsi-list))
                                 (:rsi (last (filter (fn [inp]
@@ -118,34 +119,29 @@
 
 (defn bollinger-band-signals
   ([tick-list]
-   (let [sma (simple-moving-average tick-list)
-
-
-           bband (bollinger-band tick-list sma)]
-      (bollinger-band-signals tick-list sma bband)))
-  ([tick-list sma bband]
-    (last (reductions (fn [rslt ech-list]
-                        (let [
-                               ;; track widest & narrowest band over the last 'n' ( 3 ) ticks
-                               sorted-bands (sort-bollinger-band ech-list)
-                               most-narrow (take 3 sorted-bands)
-                               most-wide (take-last 3 sorted-bands)
-                               partitioned-list (partition 2 1 (remove nil? ech-list))
-                               upM? (trade-utils/up-market? 10 (remove nil? partitioned-list))
-                               downM? (trade-utils/down-market? 10 (remove nil? partitioned-list))
-                               side-market? (and (not upM?)
-                                              (not downM?))
-                               ;; find last 3 peaks and valleys
-                               peaks-valleys (find-peaks-valleys nil (remove nil? ech-list))
-                               peaks (:peak (group-by :signal peaks-valleys))
-                               valleys (:valley (group-by :signal peaks-valleys))]
-                          (if (empty? (remove nil? ech-list))
-                            (conj rslt nil)
-                            (if (or upM? downM?)
-                              ;; A.
-                              (calculate-strategy-a rslt ech-list most-narrow upM? peaks valleys)
-                              ;; B.
-                              (calculate-strategy-b rslt ech-list most-wide peaks valleys)))
-                          (conj rslt (first ech-list))))
-            []
-            (partition tick-window 1 bband)))))
+   (let [sma (base/simple-moving-average tick-list)
+         bband (bollinger-band tick-list sma)]
+     (bollinger-band-signals tick-list bband)))
+  ([tick-list bband]
+   (last (reductions (fn [rslt ech-list]
+                       (let [sorted-bands (sort-bollinger-band tick-list)
+                             most-narrow (take 3 sorted-bands)
+                             most-wide (take-last 3 sorted-bands)
+                             partitioned-list (partition 2 1 (remove nil? tick-list)) ;; TODO check nil?
+                             upM? (trade-utils/up-market? 10 (remove nil? partitioned-list))
+                             downM? (trade-utils/down-market? 10 (remove nil? partitioned-list))
+                             side-market? (and (not upM?)
+                                               (not downM?))
+                             peaks-valleys (find-peaks-valleys (remove nil? tick-list))
+                             peaks (:peak (group-by :signal peaks-valleys))
+                             valleys (:valley (group-by :signal peaks-valleys))]
+                         (if (empty? (remove nil? tick-list))
+                           (conj rslt nil)
+                           (if (or upM? downM?)
+                             ;; A.
+                             (calculate-strategy-a rslt tick-list most-narrow upM? peaks valleys)
+                             ;; B.
+                             (calculate-strategy-b rslt tick-list most-wide peaks valleys)))
+                         (conj rslt (first ech-list))))
+                     []
+                     (partition (count tick-list) 1 bband)))))
