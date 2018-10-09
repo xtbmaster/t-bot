@@ -1,6 +1,7 @@
-(ns t-bot.trade.indicators.simple
+(ns t-bot.trade.indicators.general
   (:require
-    [t-bot.auxiliary.utils :as utils]))
+   [t-bot.auxiliary.utils :as utils]
+   [t-bot.trade.indicators.boll :as boll]))
 
 (defn simple-moving-average
   [tick-list]
@@ -38,15 +39,6 @@
       (Math/sqrt
         (with-precision 10 (/ (apply + squares) (- total 1)))))))
 
-(defn bollinger-band
-  ([tick-list] (bollinger-band tick-list (simple-moving-average tick-list)))
-  ([tick-list sma]
-    (let [ stdev (standard-deviation tick-list)
-           upper-band (+ sma (with-precision 10 (* stdev 2)))
-           lower-band (- sma (with-precision 10 (* stdev 2)))]
-      { :upper-band upper-band
-        :lower-band lower-band})))
-
 (defn moving-averages-signals
   [tick-list]
   (let [ sma (simple-moving-average tick-list)
@@ -75,49 +67,6 @@
          rsi (- 100 (with-precision 10 (/ 100 (+ 1 rs))))]
     rsi))
 
-(defn sort-bollinger-band [bband]
-  (let [diffs (map #(assoc % :difference (- (:upper-band %) (:lower-band %)))
-                (remove nil? bband))]
-    (sort-by :difference diffs)))
-
-
-
-
-(defn bollinger-band-signals
-  ([tick-list]
-    (let [ sma (simple-moving-average tick-list)
-           bband (bollinger-band tick-list sma)]
-      (bollinger-band-signals tick-list sma bband)))
-  ([tick-list sma bband]
-    (last (reductions (fn [rslt ech-list]
-                        (let [
-                               ;; track widest & narrowest band over the last 'n' ( 3 ) ticks
-                               sorted-bands (sort-bollinger-band ech-list)
-                               most-narrow (take 3 sorted-bands)
-                               most-wide (take-last 3 sorted-bands)
-                               partitioned-list (partition 2 1 (remove nil? ech-list))
-                               upM? (trade-utils/up-market? 10 (remove nil? partitioned-list))
-                               downM? (trade-utils/down-market? 10 (remove nil? partitioned-list))
-                               side-market? (and (not upM?)
-                                              (not downM?))
-                               ;; find last 3 peaks and valleys
-                               peaks-valleys (find-peaks-valleys nil (remove nil? ech-list))
-                               peaks (:peak (group-by :signal peaks-valleys))
-                               valleys (:valley (group-by :signal peaks-valleys))]
-                          (if (empty? (remove nil? ech-list))
-                            (conj rslt nil)
-                            (if (or upM? downM?)
-                              ;; A.
-                              (calculate-strategy-a rslt ech-list most-narrow upM? peaks valleys)
-                              ;; B.
-                              (calculate-strategy-b rslt ech-list most-wide peaks valleys)))
-                          (conj rslt (first ech-list))))
-            []
-            (partition tick-window 1 bband)))))
-
-
-
-
 (defn get-indicators [tick-list]
   (let [ pure-list (map :price tick-list)
          last-prices (take-last 2 pure-list)
@@ -126,7 +75,7 @@
          sma (simple-moving-average pure-list)
          ema (exponential-moving-average pure-list)
          rsi (relative-strength-index pure-list)
-         boll (bollinger-band pure-list sma)
+         boll (boll/bollinger-band pure-list sma)
          macd (moving-averages-signals pure-list)]
     { :current-price current-price
       :prev-price prev-price

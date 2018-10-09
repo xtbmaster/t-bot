@@ -2,14 +2,13 @@
   (:require
     [t-bot.auxiliary.market-generator :as market-generator]
     [t-bot.auxiliary.visualization :as visual]
-    [t-bot.trade.indicators :as indicators]
+    [t-bot.trade.indicators.general :as indicators]
     [t-bot.auxiliary.utils :as utils]
     [t-bot.trade.trade :as trade]
     [t-bot.trade.utils :as trade-utils]
     [t-bot.trade.platforms :as platforms]
 
-    [clojure.tools.logging :as log]
-    ))
+    [clojure.tools.logging :as log]))
 
 (defmulti start! identity)
 
