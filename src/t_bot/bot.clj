@@ -2,7 +2,7 @@
   (:require
     [t-bot.auxiliary.market-generator :as market-generator]
     [t-bot.auxiliary.visualization :as visual]
-    [t-bot.trade.indicators.base :as indicators]
+    [t-bot.trade.indicators.indicators :as indicators]
     [t-bot.auxiliary.utils :as utils]
     [t-bot.trade.trade :as trade]
     [t-bot.trade.utils :as trade-utils]
@@ -21,22 +21,22 @@
         partitioned-ticks (partition 20 1 tick-list)] ;; TODO: review price order
                                         ; _ (visualization/build-graph! 3030 NAME)]
     (loop [[tick-list & remaining-ticks] partitioned-ticks
-           opens { :population []
-                   :last-open nil
-                   :last-close nil
-                   :total-qnt 0
-                   :total-value 0}
+           opens {:population []
+                  :last-open nil
+                  :last-close nil
+                  :total-qnt 0
+                  :total-value 0}
            signal nil]
 
       (let [indicators (-> (indicators/get-indicators tick-list)
                          (assoc-in [:signal :prev] signal))
-            trade-params { :limit-factor (-> config :trading :common :order-limit-factor)
-                           :opens-limit (-> config :trading :common :open-positions-limit)
-                           :indicators indicators
-                           :fee (-> config :trading platform-name :trading-fee)
-                           :qnt (-> config :trading :common :trade-qnt)
-                           :pair pair
-                           :platform-name platform-name}
+            trade-params {:limit-factor (-> config :trading :common :order-limit-factor)
+                          :opens-limit (-> config :trading :common :open-positions-limit)
+                          :indicators indicators
+                          :fee (-> config :trading platform-name :trading-fee)
+                          :qnt (-> config :trading :common :trade-qnt)
+                          :pair pair
+                          :platform-name platform-name}
             portfolio (trade/update-positions! opens trade-params (:trading config))
 
             ;; for graphics
