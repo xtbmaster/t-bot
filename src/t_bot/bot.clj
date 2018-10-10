@@ -21,15 +21,14 @@
         partitioned-ticks (partition 20 1 tick-list)] ;; TODO: review price order
                                         ; _ (visualization/build-graph! 3030 NAME)]
     (loop [[tick-list & remaining-ticks] partitioned-ticks
+           history [] ;; [{:population [] :indicators {}}]
            opens {:population []
                   :last-open nil
                   :last-close nil
                   :total-qnt 0
-                  :total-value 0}
-           signal nil]
+                  :total-value 0}]
 
-      (let [indicators (-> (indicators/get-indicators tick-list)
-                         (assoc-in [:signal :prev] signal))
+      (let [indicators (indicators/get-indicators tick-list history)
             trade-params {:limit-factor (-> config :trading :common :order-limit-factor)
                           :opens-limit (-> config :trading :common :open-positions-limit)
                           :indicators indicators
@@ -60,7 +59,9 @@
                                (= (:last-close opens) (:last-close portfolio)) (dissoc data :close-price)
                                (= signal (-> indicators :signal :current)) (dissoc data :signal))]
           (visual/update-graph! data-for-graph name))
-        (recur remaining-ticks portfolio (-> indicators :signal :current))))))
+        (recur remaining-ticks
+               (conj history {:population tick-list :indicators indicators})
+               portfolio)))))
 
 (defmethod start! :prod [_] (println "hello prod"))
 
@@ -69,17 +70,17 @@
   (visual/graph! "TEST-DATA")
   (start! :dev))
 
-;; TODO: trading on bearish market
-;; TODO: console control
-;; TODO: connection lose handling
-;; TODO: request timeout
-;; TODO: RSI graphic
-;; TODO: boll signals
-;; TODO: standard deviation comparison
-;; TODO: std deviation limit constraint (flat cases)
+;; TODO trading on bearish market
+;; TODO console control
+;; TODO connection lose handling
+;; TODO request timeout
+;; TODO RSI graphic
+;; TODO boll signals
+;; TODO standard deviation comparison
+;; TODO std deviation limit constraint (flat cases)
 
-;; TODO: logging to file
-;; TODO: tests :)
-;; TODO; freefall
-;; TODO: documentation
-;; TODO: trade statistics
+;; TODO logging to file
+;; TODO tests :)
+;; TODO freefall
+;; TODO documentation
+;; TODO trade statistics
