@@ -9,17 +9,17 @@
   lower `band` depending on whether we need to change a sell or
   buy limit."
   [sma band ease-factor]
-  (let [ factor (/ ease-factor 100)
-         dif (- sma band)
-         eased-dif (with-precision 10 (* factor dif))
-         new-limit (+ dif eased-dif)]
+  (let [factor (/ ease-factor 100)
+        dif (- sma band)
+        eased-dif (with-precision 10 (* factor dif))
+        new-limit (+ dif eased-dif)]
     new-limit))
 
 (defn calculate-value
   ([price qnt] (calculate-value price qnt 0))
   ([price qnt fee-percentage]
-   (let [ revenue (with-precision 10 (* price qnt))
-          fee-amount (with-precision 10 (/ (* fee-percentage revenue) 100))]
+   (let [revenue (with-precision 10 (* price qnt))
+         fee-amount (with-precision 10 (/ (* fee-percentage revenue) 100))]
      (- revenue fee-amount))))
 
 (defn- parse-trade [trade]
