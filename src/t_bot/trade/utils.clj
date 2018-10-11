@@ -32,7 +32,7 @@
 (defn- parse-response [response]
   (map parse-trade (:body response)))
 
-;; TODO: unify
+;; TODO: unify with other platforms
 (defn get-ticks!
   ([platform symb] (get-ticks! platform symb 1))
   ([platform symb limit]
@@ -54,3 +54,19 @@
 
 (defn down-market? [period tick-list]
   (market-direction > period tick-list)) ;; TODO: same here
+
+(defn pack-trade-params [config platform-name pair indicators]
+  {:limit-factor (-> config :trading :common :order-limit-factor)
+   :opens-limit (-> config :trading :common :open-positions-limit)
+   :indicators indicators
+   :fee (-> config :trading platform-name :trading-fee)
+   :qnt (-> config :trading :common :trade-qnt)
+   :pair pair
+   :platform-name platform-name})
+
+(def opens-template
+  {:population []
+   :last-open nil
+   :last-close nil
+   :total-qnt 0
+   :total-value 0})

@@ -47,6 +47,7 @@
       (< ema sma) :down
       :else :sideways)))
 
+;; TODO: check this one
 (defn relative-strength-index
   [tick-list]
   (let [n-ticks (count tick-list)
@@ -59,9 +60,9 @@
         loss-sum (utils/get-sum :loss price-move)
         avg-gains (with-precision 10 (/ gain-sum (- n-ticks 1)))
         avg-losses (with-precision 10 (/ loss-sum (- n-ticks 1)))
-        rs (if (or (zero? avg-losses) (zero? avg-gains))
-             0
-             (with-precision 10 (/ avg-gains avg-losses)))
+        rs (if-not (zero? avg-losses)
+             (with-precision 10 (/ avg-gains avg-losses))
+             0)
         rsi (- 100 (with-precision 10 (/ 100 (+ 1 rs))))]
     rsi))
 

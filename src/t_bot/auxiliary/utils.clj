@@ -74,3 +74,10 @@
     (map k)
     (filter (complement nil?))
     (reduce +)))
+
+(defn trim-vector [coll size-limit]
+  (let [coll-size (count coll)
+        surpass (- coll-size size-limit)]
+    (if (and (> size-limit 0) (>= surpass 0))
+      (vec (drop surpass coll))
+      coll)))

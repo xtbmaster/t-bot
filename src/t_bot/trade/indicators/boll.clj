@@ -14,7 +14,8 @@
 
 
 (defn sort-bollinger-band [bband]
-  (let [diffs (map #(assoc % :difference (- (:upper-band %) (:lower-band %))) bband)]
+  (let [diffs (map #(assoc % :difference (- (:upper-band %) (:lower-band %)))
+                   (remove nil? bband))]
     (sort-by :difference diffs)))
 
 ;; TODO check this
@@ -122,24 +123,25 @@
          bband (bollinger-band tick-list sma)]
      (bollinger-band-signals tick-list bband)))
   ([tick-list bband]
-   (let [rslt []
-         bbands ()
-         sorted-bands (sort-bollinger-band bband)
-         most-narrow (take 3 sorted-bands)
-         most-wide (take-last 3 sorted-bands)
-         partitioned-list (partition 2 1 (remove nil? tick-list)) ;; TODO check nil?
-         upM? (trade-utils/up-market? 10 (remove nil? partitioned-list))
-         downM? (trade-utils/down-market? 10 (remove nil? partitioned-list))
-         side-market? (and (not upM?)
-                           (not downM?))
-         peaks-valleys (find-peaks-valleys (remove nil? tick-list))
-         peaks (:peak (group-by :signal peaks-valleys))
-         valleys (:valley (group-by :signal peaks-valleys))]
-     (if (empty? (remove nil? tick-list))
-       (conj rslt nil)
-       (if (or upM? downM?)
-         ;; A.
-         (calculate-strategy-a rslt tick-list most-narrow upM? peaks valleys)
-         ;; B.
-         (calculate-strategy-b rslt tick-list most-wide peaks valleys)))
-     (conj rslt (first bband)))))
+   (last (reductions (fn [rslt ech-list]
+                       (let [sorted-bands (sort-bollinger-band tick-list)
+                             most-narrow (take 3 sorted-bands)
+                             most-wide (take-last 3 sorted-bands)
+                             partitioned-list (partition 2 1 (remove nil? tick-list)) ;; TODO check nil?
+                             upM? (trade-utils/up-market? 10 (remove nil? partitioned-list))
+                             downM? (trade-utils/down-market? 10 (remove nil? partitioned-list))
+                             side-market? (and (not upM?)
+                                               (not downM?))
+                             peaks-valleys (find-peaks-valleys (remove nil? tick-list))
+                             peaks (:peak (group-by :signal peaks-valleys))
+                             valleys (:valley (group-by :signal peaks-valleys))]
+                         (if (empty? (remove nil? tick-list))
+                           (conj rslt nil)
+                           (if (or upM? downM?)
+                             ;; A.
+                             (calculate-strategy-a rslt tick-list most-narrow upM? peaks valleys)
+                             ;; B.
+                             (calculate-strategy-b rslt tick-list most-wide peaks valleys)))
+                         (conj rslt (first ech-list))))
+                     []
+                     (partition (count tick-list) 1 bband)))))

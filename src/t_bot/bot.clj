@@ -21,29 +21,16 @@
         partitioned-ticks (partition 20 1 tick-list)] ;; TODO: review price order
                                         ; _ (visualization/build-graph! 3030 NAME)]
     (loop [[tick-list & remaining-ticks] partitioned-ticks
-           history [] ;; [{:population [] :indicators {}}]
-           opens {:population []
-                  :last-open nil
-                  :last-close nil
-                  :total-qnt 0
-                  :total-value 0}]
+           historical-ticks []
+           opens trade-utils/opens-template]
 
       (let [indicators (indicators/get-indicators tick-list history)
-            trade-params {:limit-factor (-> config :trading :common :order-limit-factor)
-                          :opens-limit (-> config :trading :common :open-positions-limit)
-                          :indicators indicators
-                          :fee (-> config :trading platform-name :trading-fee)
-                          :qnt (-> config :trading :common :trade-qnt)
-                          :pair pair
-                          :platform-name platform-name}
+            trade-params (trade-utils/pack-trade-params config platform-name pair indicators)
             portfolio (trade/update-positions! opens trade-params (:trading config))
-
-            ;; for graphics
-            unique-time {:time (utils/make-time-unique (:time indicators) ((comp :id last) tick-list))}
-            data (merge indicators
-                   unique-time
-                   {:open-price (-> portfolio :last-open :price)}
-                   {:close-price (-> portfolio :last-close :price)})]
+            history (-> historical-ticks
+                        (conj {:population tick-list :indicators indicators})
+                        (utils/trim-vector (-> config :trading :common :tick-list-history)))
+            unique-time {:time (utils/make-time-unique (:time indicators) ((comp :id last) tick-list))}]
 
         ;; logging
         (when (or (zero? (count (:population portfolio)))
@@ -54,14 +41,8 @@
                       " TOTAL OPENS: " (count (:population portfolio)))))
 
         (Thread/sleep 800)
-        (let [data-for-graph (cond-> data
-                               (= (:last-open opens) (:last-open portfolio)) (dissoc data :open-price)
-                               (= (:last-close opens) (:last-close portfolio)) (dissoc data :close-price)
-                               (= signal (-> indicators :signal :current)) (dissoc data :signal))]
-          (visual/update-graph! data-for-graph name))
-        (recur remaining-ticks
-               (conj history {:population tick-list :indicators indicators})
-               portfolio)))))
+        (visual/update-graph! name portfolio indicators unique-time))
+      (recur remaining-ticks history portfolio))))
 
 (defmethod start! :prod [_] (println "hello prod"))
 
@@ -70,17 +51,16 @@
   (visual/graph! "TEST-DATA")
   (start! :dev))
 
-;; TODO trading on bearish market
-;; TODO console control
-;; TODO connection lose handling
-;; TODO request timeout
-;; TODO RSI graphic
-;; TODO boll signals
-;; TODO standard deviation comparison
-;; TODO std deviation limit constraint (flat cases)
+;; TODO: console control
+;; TODO: connection lose handling
+;; TODO: request timeout
+;; TODO: RSI graphic
+;; TODO: boll signals
+;; TODO: standard deviation comparison ?? boll signals
+;; TODO: std deviation limit constraint (flat cases)
 
-;; TODO logging to file
-;; TODO tests :)
-;; TODO freefall
-;; TODO documentation
-;; TODO trade statistics
+;; TODO: logging to file
+;; TODO: tests :)
+;; TODO: freefall
+;; TODO: documentation
+;; TODO: trade statistics
