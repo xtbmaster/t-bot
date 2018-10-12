@@ -122,7 +122,7 @@
    (let [sma (base/simple-moving-average tick-list)
          bband (bollinger-band tick-list sma)]
      (bollinger-band-signals tick-list bband)))
-  ([tick-list bband]
+  ([tick-list bband history]
    (last (reductions (fn [rslt ech-list]
                        (let [sorted-bands (sort-bollinger-band tick-list)
                              most-narrow (take 3 sorted-bands)

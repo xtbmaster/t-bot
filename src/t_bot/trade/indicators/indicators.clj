@@ -26,11 +26,11 @@
       :time ((comp :time last) tick-list)}))
   ([tick-list history]
    (let [{:keys [boll] :as current-list-indicators} (get-indicators tick-list)
-         bolls (boll/bollinger-band-signals tick-list boll)] ;;FIXME
+         bolls (boll/bollinger-band-signals tick-list boll history)]
      (assoc current-list-indicators :bolls bolls))))
 
 (defn get-historical-indicators
-  [period partitioned-ticks]
-  (for [t (take period partitioned-ticks)]
+  [history-period partitioned-ticks]
+  (for [t (take history-period partitioned-ticks)]
     {:population t
      :indicators (get-indicators t)}))

@@ -19,7 +19,7 @@
         platform-name (:name platforms/BINANCE) ;; TODO: move to args
         tick-list (trade-utils/get-ticks! platform-name pair 1000)
         partitioned-ticks (partition 20 1 tick-list)
-        history-limit (-> config :trading :common :tick-list-history)
+        history-limit (-> config :trading :common :tick-history-period)
         historical-ticks (indicators/get-historical-indicators history-limit partitioned-ticks)]
     ;; TODO: review price order
                                         ; _ (visualization/build-graph! 3030 NAME)]

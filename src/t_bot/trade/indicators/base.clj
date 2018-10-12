@@ -47,7 +47,6 @@
       (< ema sma) :down
       :else :sideways)))
 
-;; TODO: check this one
 (defn relative-strength-index
   [tick-list]
   (let [n-ticks (count tick-list)
